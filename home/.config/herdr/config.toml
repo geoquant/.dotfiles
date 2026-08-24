@@ -488,7 +488,7 @@ right_click_passthrough_modifier = "ctrl"
 
 # Ask for confirmation before closing a workspace.
 # Default: true.
-confirm_close = false
+confirm_close = true
 
 # Ask for a name before creating a tab.
 # Default: true.

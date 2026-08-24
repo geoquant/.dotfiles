@@ -42,6 +42,10 @@ Without an override, token import checks:
 - `$XDG_DATA_HOME/opencode/auth.json`
 - `~/.local/share/opencode/auth.json`
 
+## Startup recovery
+
+If Pi attempts initial model selection before this extension's provider registration is applied, the extension restores the configured OpenCode Cloudflare default model from Pi's cached catalog during `session_start`. Recovery does not require network access and preserves the configured thinking level.
+
 ## Commands
 
 - `/opencode-cf-doctor` — verify credential presence, live discovery, backends, and model count without printing secrets
