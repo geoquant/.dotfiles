@@ -14,15 +14,14 @@ import type {
 	ProviderAuthInteraction,
 } from "@earendil-works/pi-ai";
 import {
-	AUTH_ORIGIN,
 	DEFAULT_TOKEN_EXPIRY_MS,
 	EXPIRY_SAFETY_BUFFER_MS,
-	OPENCODE_AUTH_FILE_ENV,
-	PROVIDER_ID,
-	PROVIDER_NAME,
-	TOKEN_ENV_OVERRIDE,
-	WELL_KNOWN_URL,
+	gatewayWellKnownUrl,
 } from "./constants.ts";
+import {
+	PRIVATE_GATEWAY_AUTH_FILE_ENV,
+	type GatewayProfile,
+} from "./private-gateway-profiles.ts";
 import { isJsonNumber, isJsonObject, isJsonString, parseJsonObject, type JsonObject, type JsonValue } from "./json-value.ts";
 import { Redacted, type Redacted as RedactedValue } from "./redacted.ts";
 import { failure, type Result, success } from "./result.ts";
@@ -100,8 +99,8 @@ export interface OpenCodeAuthSource {
 	listAuthCandidates(): readonly string[];
 	/** Return the first existing OpenCode auth path. */
 	findAuthPath(): string | undefined;
-	/** Parse the current imported OpenCode token. */
-	readImportedToken(): Result<ImportedGatewayToken | undefined, GatewayAuthError>;
+	/** Parse the imported OpenCode token for a trusted gateway auth origin. */
+	readImportedToken(origin: string): Result<ImportedGatewayToken | undefined, GatewayAuthError>;
 }
 
 /** Filesystem and clock capabilities used to import OpenCode auth. */
@@ -111,14 +110,20 @@ export interface OpenCodeAuthSourceDependencies {
 	readonly fileExists: (path: string) => boolean;
 	readonly readTextFile: (path: string) => string;
 	readonly now: () => number;
+	/** Authentication origins belonging to parsed private gateway profiles. */
+	readonly trustedAuthOrigins: readonly string[];
 }
 
-function isAllowedGatewayOrigin(input: string): boolean {
+function originEquals(left: string, right: string): boolean {
 	try {
-		return new URL(input).origin === new URL(AUTH_ORIGIN).origin;
+		return new URL(left).origin === new URL(right).origin;
 	} catch {
 		return false;
 	}
+}
+
+function isAllowedGatewayAuthOrigin(input: string, trustedAuthOrigins: readonly string[]): boolean {
+	return trustedAuthOrigins.some((origin) => originEquals(input, origin));
 }
 
 function normalizeGatewayOrigin(input: string): string {
@@ -131,7 +136,7 @@ function normalizeGatewayOrigin(input: string): string {
 
 function normalizeAuthLookupKeys(origin: string): readonly string[] {
 	const normalized = normalizeGatewayOrigin(origin);
-	return [normalized, `${normalized}/`, WELL_KNOWN_URL];
+	return [normalized, `${normalized}/`, gatewayWellKnownUrl(normalized)];
 }
 
 function parseAuthMap(text: string, authPath: string): Result<JsonObject, GatewayAuthError> {
@@ -193,7 +198,7 @@ function base64UrlToBase64(value: string): string {
 	return remainder === 0 ? normalized : normalized.padEnd(normalized.length + (4 - remainder), "=");
 }
 
-function getTrustedGatewayApp(command: readonly string[]): string | undefined {
+function getTrustedGatewayApp(command: readonly string[], trustedAuthOrigin: string): string | undefined {
 	const appTargets: string[] = [];
 	for (let index = 0; index < command.length; index += 1) {
 		const argument = command[index];
@@ -207,7 +212,7 @@ function getTrustedGatewayApp(command: readonly string[]): string | undefined {
 			if (target) appTargets.push(target);
 		}
 	}
-	return appTargets.length === 1 && appTargets[0] && isAllowedGatewayOrigin(appTargets[0])
+	return appTargets.length === 1 && appTargets[0] && originEquals(appTargets[0], trustedAuthOrigin)
 		? appTargets[0]
 		: undefined;
 }
@@ -216,23 +221,26 @@ function getTrustedGatewayApp(command: readonly string[]): string | undefined {
  * Validate the remotely supplied login command without invoking a shell.
  *
  * @param command - Discovery document auth command.
+ * @param trustedAuthOrigin - Cloudflare Access origin this login is allowed to target.
  * @returns Trusted argv tuple or a classified rejection.
  */
 export function validateGatewayAuthCommand(
 	command: string | readonly string[] | undefined,
+	trustedAuthOrigin: string,
 ): Result<readonly [string, ...string[]], GatewayAuthError> {
+	const wellKnownUrl = gatewayWellKnownUrl(trustedAuthOrigin);
 	if (!command) {
-		return failure(new GatewayAuthError("missing-auth-command", `Gateway auth command missing from ${WELL_KNOWN_URL}`));
+		return failure(new GatewayAuthError("missing-auth-command", `Gateway auth command missing from ${wellKnownUrl}`));
 	}
 	if (!Array.isArray(command)) {
-		return failure(new GatewayAuthError("untrusted-auth-command", `Refusing string gateway auth command from ${WELL_KNOWN_URL}`));
+		return failure(new GatewayAuthError("untrusted-auth-command", `Refusing string gateway auth command from ${wellKnownUrl}`));
 	}
 	const executable = command[0];
 	if (!executable || executable !== "cloudflared" || command[1] !== "access" || command[2] !== "login") {
-		return failure(new GatewayAuthError("untrusted-auth-command", `Refusing unexpected gateway auth command from ${WELL_KNOWN_URL}`));
+		return failure(new GatewayAuthError("untrusted-auth-command", `Refusing unexpected gateway auth command from ${wellKnownUrl}`));
 	}
-	if (!getTrustedGatewayApp(command)) {
-		return failure(new GatewayAuthError("untrusted-auth-command", `Refusing gateway auth command without exactly one trusted -app=${AUTH_ORIGIN} target`));
+	if (!getTrustedGatewayApp(command, trustedAuthOrigin)) {
+		return failure(new GatewayAuthError("untrusted-auth-command", `Refusing gateway auth command without exactly one trusted -app=${trustedAuthOrigin} target`));
 	}
 	return success([executable, ...command.slice(1)]);
 }
@@ -314,7 +322,7 @@ async function runGatewayAuthCommand(
 export function createOpenCodeAuthSource(dependencies: OpenCodeAuthSourceDependencies): OpenCodeAuthSource {
 	const listAuthCandidates = (): readonly string[] => {
 		const candidates = new Set<string>();
-		const explicit = dependencies.environment(OPENCODE_AUTH_FILE_ENV)?.trim();
+		const explicit = dependencies.environment(PRIVATE_GATEWAY_AUTH_FILE_ENV)?.trim();
 		if (explicit) candidates.add(resolve(explicit));
 		const xdgDataHome = dependencies.environment("XDG_DATA_HOME")?.trim();
 		if (xdgDataHome) candidates.add(join(xdgDataHome, "opencode", "auth.json"));
@@ -322,8 +330,8 @@ export function createOpenCodeAuthSource(dependencies: OpenCodeAuthSourceDepende
 		return Array.from(candidates);
 	};
 	const findAuthPath = (): string | undefined => listAuthCandidates().find((candidate) => dependencies.fileExists(candidate));
-	const readImportedToken = (origin = AUTH_ORIGIN): Result<ImportedGatewayToken | undefined, GatewayAuthError> => {
-		if (!isAllowedGatewayOrigin(origin)) {
+	const readImportedToken = (origin: string): Result<ImportedGatewayToken | undefined, GatewayAuthError> => {
+		if (!isAllowedGatewayAuthOrigin(origin, dependencies.trustedAuthOrigins)) {
 			return failure(new GatewayAuthError("untrusted-origin", `Refusing to read auth for untrusted gateway origin: ${origin}`));
 		}
 		const authPath = findAuthPath();
@@ -348,19 +356,45 @@ export function createOpenCodeAuthSource(dependencies: OpenCodeAuthSourceDepende
 	return {
 		listAuthCandidates,
 		findAuthPath,
-		readImportedToken: () => readImportedToken(),
+		readImportedToken,
 	};
 }
 
-/** Create the production OpenCode auth-file source. */
-export function createProductionOpenCodeAuthSource(): OpenCodeAuthSource {
+/**
+ * Create the production OpenCode auth-file source.
+ *
+ * @param trustedAuthOrigins - Authentication origins belonging to parsed private gateway profiles.
+ */
+export function createProductionOpenCodeAuthSource(trustedAuthOrigins: readonly string[]): OpenCodeAuthSource {
 	return createOpenCodeAuthSource({
 		environment: (name) => process.env[name],
 		homeDirectory: () => homedir(),
 		fileExists: (path) => existsSync(path),
 		readTextFile: (path) => readFileSync(path, "utf8"),
 		now: () => Date.now(),
+		trustedAuthOrigins,
 	});
+}
+
+/**
+ * Resolve a usable gateway token from the profile environment override or OpenCode auth file.
+ *
+ * @param profile - Private gateway Cloudflare Access application whose token is needed.
+ * @param authSource - OpenCode auth-file lookup.
+ * @param environment - Process environment lookup.
+ * @param now - Current timestamp in milliseconds.
+ */
+export function resolveStoredGatewayToken(
+	profile: GatewayProfile,
+	authSource: OpenCodeAuthSource,
+	environment: (name: string) => string | undefined,
+	now: number,
+): GatewayToken | undefined {
+	const environmentToken = GatewayToken.parse(environment(profile.tokenEnv));
+	if (isUsableGatewayToken(environmentToken, now)) return environmentToken;
+	const imported = authSource.readImportedToken(profile.authOrigin);
+	if (imported.ok && isUsableGatewayToken(imported.value?.token, now)) return imported.value.token;
+	return undefined;
 }
 
 /**
@@ -381,21 +415,25 @@ export function toGatewayModelAuth(token: GatewayToken): AuthResult["auth"] {
 	};
 }
 
-async function resolveEnvironmentToken(ctx: AuthContext, signal: AbortSignal): Promise<GatewayToken | undefined> {
+async function resolveEnvironmentToken(
+	ctx: AuthContext,
+	signal: AbortSignal,
+	tokenEnv: string,
+): Promise<GatewayToken | undefined> {
 	signal.throwIfAborted();
-	return GatewayToken.parse(await ctx.env(TOKEN_ENV_OVERRIDE));
+	return GatewayToken.parse(await ctx.env(tokenEnv));
 }
 
-function createApiKeyAuth(authSource: OpenCodeAuthSource, now: () => number): ApiKeyAuth {
+function createApiKeyAuth(profile: GatewayProfile, authSource: OpenCodeAuthSource, now: () => number): ApiKeyAuth {
 	return {
-		name: `${PROVIDER_NAME} token`,
+		name: `${profile.name} token`,
 		async login(interaction: ProviderAuthInteraction): Promise<ApiKeyCredential> {
 			interaction.signal.throwIfAborted();
-			const key = await interaction.prompt({ type: "secret", message: `Enter ${PROVIDER_NAME} token` });
+			const key = await interaction.prompt({ type: "secret", message: `Enter ${profile.name} token` });
 			interaction.signal.throwIfAborted();
 			const token = GatewayToken.parse(key);
 			if (!token) {
-				throw new GatewayAuthError("missing-token", "A non-empty OpenCode Cloudflare token is required");
+				throw new GatewayAuthError("missing-token", `A non-empty ${profile.name} token is required`);
 			}
 			return { type: "api_key", key: Redacted.value(token) };
 		},
@@ -403,9 +441,9 @@ function createApiKeyAuth(authSource: OpenCodeAuthSource, now: () => number): Ap
 			input.signal.throwIfAborted();
 			const stored = GatewayToken.parse(input.credential?.key);
 			if (isUsableGatewayToken(stored, now())) return { source: "stored credential", type: "api_key" };
-			const environment = await resolveEnvironmentToken(input.ctx, input.signal);
-			if (isUsableGatewayToken(environment, now())) return { source: TOKEN_ENV_OVERRIDE, type: "api_key" };
-			const imported = authSource.readImportedToken();
+			const environment = await resolveEnvironmentToken(input.ctx, input.signal, profile.tokenEnv);
+			if (isUsableGatewayToken(environment, now())) return { source: profile.tokenEnv, type: "api_key" };
+			const imported = authSource.readImportedToken(profile.authOrigin);
 			if (!imported.ok) throw imported.error;
 			if (isUsableGatewayToken(imported.value?.token, now())) return { source: "OpenCode auth file", type: "api_key" };
 			return undefined;
@@ -416,11 +454,11 @@ function createApiKeyAuth(authSource: OpenCodeAuthSource, now: () => number): Ap
 			if (isUsableGatewayToken(stored, now())) {
 				return { auth: toGatewayModelAuth(stored), source: "stored credential" };
 			}
-			const environment = await resolveEnvironmentToken(input.ctx, input.signal);
+			const environment = await resolveEnvironmentToken(input.ctx, input.signal, profile.tokenEnv);
 			if (isUsableGatewayToken(environment, now())) {
-				return { auth: toGatewayModelAuth(environment), source: TOKEN_ENV_OVERRIDE };
+				return { auth: toGatewayModelAuth(environment), source: profile.tokenEnv };
 			}
-			const imported = authSource.readImportedToken();
+			const imported = authSource.readImportedToken(profile.authOrigin);
 			if (!imported.ok) throw imported.error;
 			if (isUsableGatewayToken(imported.value?.token, now())) {
 				return { auth: toGatewayModelAuth(imported.value.token), source: "OpenCode auth file" };
@@ -433,31 +471,33 @@ function createApiKeyAuth(authSource: OpenCodeAuthSource, now: () => number): Ap
 /**
  * OAuth login/refresh that imports OpenCode auth or runs a trusted cloudflared command.
  *
+ * @param profile - Private gateway Cloudflare Access application to authenticate.
  * @param authSource - OpenCode auth-file lookup.
  * @param loadAuthCommand - Load the discovery-document login command.
  * @param now - Clock used for expiry interpretation.
  */
 export function createGatewayOAuthAuth(
+	profile: GatewayProfile,
 	authSource: OpenCodeAuthSource,
 	loadAuthCommand: (signal: AbortSignal) => Promise<string | readonly string[] | undefined>,
 	now: () => number = () => Date.now(),
 ): OAuthAuth {
 	return {
-		name: PROVIDER_NAME,
-		loginLabel: `Sign in to ${PROVIDER_NAME}`,
+		name: profile.name,
+		loginLabel: `Sign in to ${profile.name}`,
 		async login(interaction: ProviderAuthInteraction): Promise<OAuthCredential> {
 			interaction.signal.throwIfAborted();
-			const imported = authSource.readImportedToken();
+			const imported = authSource.readImportedToken(profile.authOrigin);
 			if (!imported.ok) throw imported.error;
 			if (isUsableGatewayToken(imported.value?.token, now())) {
-				interaction.notify({ type: "progress", message: "Reusing the existing OpenCode Cloudflare token from auth.json" });
+				interaction.notify({ type: "progress", message: `Reusing the existing ${profile.name} token from auth.json` });
 				return createOAuthCredential(imported.value.token, now());
 			}
-			const command = validateGatewayAuthCommand(await loadAuthCommand(interaction.signal));
+			const command = validateGatewayAuthCommand(await loadAuthCommand(interaction.signal), profile.authOrigin);
 			if (!command.ok) throw command.error;
 			interaction.notify({
 				type: "auth_url",
-				url: AUTH_ORIGIN,
+				url: profile.authOrigin,
 				instructions: "Complete the Cloudflare Access login in your browser.",
 			});
 			interaction.notify({ type: "progress", message: "Running Cloudflare Access login command..." });
@@ -468,17 +508,17 @@ export function createGatewayOAuthAuth(
 		},
 		async refresh(_credential, signal): Promise<OAuthCredential> {
 			signal.throwIfAborted();
-			const imported = authSource.readImportedToken();
+			const imported = authSource.readImportedToken(profile.authOrigin);
 			if (!imported.ok) throw imported.error;
 			if (isUsableGatewayToken(imported.value?.token, now())) {
 				return createOAuthCredential(imported.value.token, now());
 			}
-			throw new GatewayAuthError("expired-token", `The OpenCode Cloudflare token has expired. Refresh OpenCode auth, then run /login ${PROVIDER_ID}.`);
+			throw new GatewayAuthError("expired-token", `The ${profile.name} token has expired. Refresh OpenCode auth, then run /login ${profile.id}.`);
 		},
 		async toAuth(credential): Promise<AuthResult["auth"]> {
 			const token = GatewayToken.parse(credential.access);
 			if (!token) {
-				throw new GatewayAuthError("missing-token", "Stored OpenCode Cloudflare credential did not contain a token");
+				throw new GatewayAuthError("missing-token", `Stored ${profile.name} credential did not contain a token`);
 			}
 			return toGatewayModelAuth(token);
 		},
@@ -488,18 +528,20 @@ export function createGatewayOAuthAuth(
 /**
  * Create the provider-owned auth methods for `/login` and request resolution.
  *
+ * @param profile - Private gateway Cloudflare Access application to authenticate.
  * @param authSource - OpenCode auth-file lookup.
  * @param loadAuthCommand - Load the discovery-document login command.
  * @param now - Clock used for expiry interpretation.
  */
 export function createGatewayProviderAuth(
+	profile: GatewayProfile,
 	authSource: OpenCodeAuthSource,
 	loadAuthCommand: (signal: AbortSignal) => Promise<string | readonly string[] | undefined>,
 	now: () => number = () => Date.now(),
 ): ProviderAuth {
 	return {
-		apiKey: createApiKeyAuth(authSource, now),
-		oauth: createGatewayOAuthAuth(authSource, loadAuthCommand, now),
+		apiKey: createApiKeyAuth(profile, authSource, now),
+		oauth: createGatewayOAuthAuth(profile, authSource, loadAuthCommand, now),
 	};
 }
 

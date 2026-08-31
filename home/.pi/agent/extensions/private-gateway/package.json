@@ -1,5 +1,5 @@
 {
-  "name": "pi-extension-opencode-cloudflare",
+  "name": "pi-extension-private-gateway",
   "private": true,
   "version": "0.2.0",
   "type": "module",

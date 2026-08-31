@@ -1,12 +1,12 @@
 import type { Api, Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import {
-	AUTH_ORIGIN,
 	BACKENDS,
-	DEFAULT_ROUTE_URLS,
 	DISCOVERY_TIMEOUT_MS,
-	GATEWAY_ORIGIN,
+	defaultGatewayRouteUrls,
+	gatewayWellKnownUrl,
 	type Backend,
 } from "./constants.ts";
+import { type GatewayProfile } from "./private-gateway-profiles.ts";
 import {
 	isJsonBoolean,
 	isJsonNumber,
@@ -79,7 +79,10 @@ export interface GatewayRouteConfig {
 
 /** Fully resolved gateway configuration. */
 export interface GatewayConfig {
-	readonly origin: typeof GATEWAY_ORIGIN;
+	/** Trusted AI Gateway inference origin. */
+	readonly origin: string;
+	/** Pi provider identifier that owns this catalog. */
+	readonly providerId: string;
 	readonly authEnv: string;
 	readonly authCommand?: string | readonly string[];
 	readonly enabledBackends: readonly Backend[];
@@ -347,11 +350,11 @@ function parseModels(input: JsonValue | undefined, path: string): GatewayModelCo
 	return models;
 }
 
-function parseProvider(input: JsonValue, path: string): GatewayProviderConfig {
+function parseProvider(input: JsonValue, path: string, gatewayOrigin: string): GatewayProviderConfig {
 	const record = requireObject(input, path);
 	const options = optionalObject(record.options, `${path}.options`);
 	return {
-		baseUrl: optionalTrustedUrl(options?.baseURL ?? options?.baseUrl, `${path}.options.baseURL`, GATEWAY_ORIGIN),
+		baseUrl: optionalTrustedUrl(options?.baseURL ?? options?.baseUrl, `${path}.options.baseURL`, gatewayOrigin),
 		headers: parseHeaders(options?.headers, `${path}.options.headers`),
 		whitelist: optionalStringArray(record.whitelist, `${path}.whitelist`),
 		blacklist: optionalStringArray(record.blacklist, `${path}.blacklist`),
@@ -364,7 +367,11 @@ function normalizeBackend(input: string): Backend | undefined {
 	return BACKENDS.find((backend) => backend === input);
 }
 
-function parseProviders(input: JsonValue | undefined, path: string): Readonly<Partial<Record<Backend, GatewayProviderConfig>>> {
+function parseProviders(
+	input: JsonValue | undefined,
+	path: string,
+	gatewayOrigin: string,
+): Readonly<Partial<Record<Backend, GatewayProviderConfig>>> {
 	const record = optionalObject(input, path);
 	if (!record) return {};
 	const providers: Partial<Record<Backend, GatewayProviderConfig>> = {};
@@ -374,7 +381,7 @@ function parseProviders(input: JsonValue | undefined, path: string): Readonly<Pa
 		if (providers[backend]) {
 			throw new GatewayConfigParseError(`${path}.${providerName}`, `a unique configuration for ${backend}`);
 		}
-		providers[backend] = parseProvider(value, `${path}.${providerName}`);
+		providers[backend] = parseProvider(value, `${path}.${providerName}`, gatewayOrigin);
 	}
 	return providers;
 }
@@ -400,9 +407,13 @@ function parseAuthCommand(input: JsonValue | undefined, path: string): string | 
  * Parse an untrusted gateway discovery payload.
  *
  * @param input - Decoded JSON value from the gateway.
+ * @param profile - Trusted auth and inference origins for this gateway.
  * @returns Parsed document or a path-specific failure.
  */
-export function parseGatewayDocument(input: unknown): Result<GatewayDocument, GatewayConfigParseError> {
+export function parseGatewayDocument(
+	input: unknown,
+	profile: GatewayProfile,
+): Result<GatewayDocument, GatewayConfigParseError> {
 	try {
 		const decoded = parseJsonObject(input, "$");
 		if (!decoded.ok) {
@@ -414,7 +425,7 @@ export function parseGatewayDocument(input: unknown): Result<GatewayDocument, Ga
 		const nestedConfig = optionalObject(root.config, "$.config");
 		const config = nestedConfig ?? root;
 		const configPath = nestedConfig ? "$.config" : "$";
-		const remoteUrl = optionalTrustedUrl(remoteConfig?.url, "$.remote_config.url", AUTH_ORIGIN);
+		const remoteUrl = optionalTrustedUrl(remoteConfig?.url, "$.remote_config.url", profile.authOrigin);
 		return success({
 			authEnv: optionalString(auth?.env, "$.auth.env"),
 			authCommand: parseAuthCommand(auth?.command, "$.auth.command"),
@@ -423,7 +434,7 @@ export function parseGatewayDocument(input: unknown): Result<GatewayDocument, Ga
 				headers: parseHeaders(remoteConfig?.headers, "$.remote_config.headers") ?? {},
 			} : undefined,
 			enabledBackends: parseEnabledBackends(config.enabled_providers, `${configPath}.enabled_providers`),
-			providers: parseProviders(config.provider, `${configPath}.provider`),
+			providers: parseProviders(config.provider, `${configPath}.provider`, profile.gatewayOrigin),
 		});
 	} catch (error) {
 		if (Error.isError(error) && error instanceof GatewayConfigParseError) return failure(error);
@@ -460,11 +471,15 @@ export function mergeGatewayDocuments(discovery: GatewayDocument, remote: Gatewa
 	};
 }
 
-function resolveRoute(backend: Backend, document: GatewayDocument): GatewayRouteConfig {
+function resolveRoute(
+	backend: Backend,
+	document: GatewayDocument,
+	defaultRouteUrls: Readonly<Record<Backend, string>>,
+): GatewayRouteConfig {
 	const provider = document.providers[backend];
 	const models = provider?.models ?? {};
 	return {
-		baseUrl: provider?.baseUrl ?? DEFAULT_ROUTE_URLS[backend],
+		baseUrl: provider?.baseUrl ?? defaultRouteUrls[backend],
 		headers: provider?.headers ?? {},
 		models,
 		whitelist: provider?.whitelist,
@@ -477,21 +492,24 @@ function resolveRoute(backend: Backend, document: GatewayDocument): GatewayRoute
  * Resolve a parsed discovery document into an immutable runtime configuration.
  *
  * @param document - Parsed live discovery document.
+ * @param profile - Private gateway profile that owns this configuration.
  * @returns Runtime gateway configuration.
  */
-export function resolveGatewayConfig(document: GatewayDocument): GatewayConfig {
+export function resolveGatewayConfig(document: GatewayDocument, profile: GatewayProfile): GatewayConfig {
 	const enabled = new Set<Backend>(document.enabledBackends ?? BACKENDS);
+	const defaultRouteUrls = defaultGatewayRouteUrls(profile.gatewayOrigin);
 	return {
-		origin: GATEWAY_ORIGIN,
+		origin: profile.gatewayOrigin,
+		providerId: profile.id,
 		authEnv: document.authEnv ?? "TOKEN",
 		authCommand: document.authCommand,
 		enabledBackends: BACKENDS.filter((backend) => enabled.has(backend)),
 		routes: {
-			anthropic: resolveRoute("anthropic", document),
-			openai: resolveRoute("openai", document),
-			google: resolveRoute("google", document),
-			xai: resolveRoute("xai", document),
-			"workers-ai": resolveRoute("workers-ai", document),
+			anthropic: resolveRoute("anthropic", document, defaultRouteUrls),
+			openai: resolveRoute("openai", document, defaultRouteUrls),
+			google: resolveRoute("google", document, defaultRouteUrls),
+			xai: resolveRoute("xai", document, defaultRouteUrls),
+			"workers-ai": resolveRoute("workers-ai", document, defaultRouteUrls),
 		},
 	};
 }
@@ -574,20 +592,21 @@ function resolveRemoteHeaders(
 /**
  * Fetch and validate the trusted discovery document and optional authenticated remote config.
  *
- * @param options - Network, token, and cancellation inputs.
+ * @param options - Gateway profile plus network, token, and cancellation inputs.
  * @returns Resolved gateway configuration or a classified load failure.
  */
 export async function fetchGatewayConfig(options: {
+	readonly profile: GatewayProfile;
 	readonly token?: RedactedValue<string>;
 	readonly signal?: AbortSignal;
 	readonly fetch?: typeof fetch;
 	readonly wellKnownUrl?: string;
 }): Promise<Result<GatewayConfig, GatewayConfigLoadError>> {
 	const fetchImpl = options.fetch ?? fetch;
-	const wellKnownUrl = options.wellKnownUrl ?? `${AUTH_ORIGIN}/.well-known/opencode`;
+	const wellKnownUrl = options.wellKnownUrl ?? gatewayWellKnownUrl(options.profile.authOrigin);
 	const discoveryResponse = await fetchJson(wellKnownUrl, {}, options.signal, fetchImpl);
 	if (!discoveryResponse.ok) return discoveryResponse;
-	const parsedDiscovery = parseGatewayDocument(discoveryResponse.value);
+	const parsedDiscovery = parseGatewayDocument(discoveryResponse.value, options.profile);
 	if (!parsedDiscovery.ok) {
 		return failure(new GatewayConfigLoadError("remote-document", parsedDiscovery.error.message, parsedDiscovery.error));
 	}
@@ -597,11 +616,11 @@ export async function fetchGatewayConfig(options: {
 		if (!headers.ok) return headers;
 		const remoteResponse = await fetchJson(document.remoteConfig.url, headers.value, options.signal, fetchImpl);
 		if (!remoteResponse.ok) return remoteResponse;
-		const parsedRemote = parseGatewayDocument(remoteResponse.value);
+		const parsedRemote = parseGatewayDocument(remoteResponse.value, options.profile);
 		if (!parsedRemote.ok) {
 			return failure(new GatewayConfigLoadError("remote-document", parsedRemote.error.message, parsedRemote.error));
 		}
 		document = mergeGatewayDocuments(document, parsedRemote.value);
 	}
-	return success(resolveGatewayConfig(document));
+	return success(resolveGatewayConfig(document, options.profile));
 }

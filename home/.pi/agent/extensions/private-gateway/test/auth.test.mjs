@@ -12,6 +12,7 @@ import {
 	validateGatewayAuthCommand,
 } from "../auth.ts";
 import { Redacted } from "../redacted.ts";
+import { PRIMARY_GATEWAY, SECONDARY_GATEWAY } from "./profiles.mjs";
 
 function jwt(exp) {
 	const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -31,6 +32,7 @@ function createAuthSource(overrides = {}) {
 			return value;
 		},
 		now: () => overrides.now ?? 1000,
+		trustedAuthOrigins: overrides.trustedAuthOrigins ?? [PRIMARY_GATEWAY.authOrigin, SECONDARY_GATEWAY.authOrigin],
 	});
 }
 
@@ -48,14 +50,14 @@ test("GatewayToken uses the Redacted primitive and reports JWT expiry", () => {
 test("imports a usable OpenCode auth-file token", () => {
 	const authPath = "/tmp/opencode-auth.json";
 	const source = createAuthSource({
-		environment: { OPENCODE_CLOUDFLARE_AUTH_FILE: authPath },
+		environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
 		files: {
 			[authPath]: JSON.stringify({
-				"https://opencode.cloudflare.dev": { type: "oauth", token: "imported-token" },
+				[PRIMARY_GATEWAY.authOrigin]: { type: "oauth", token: "imported-token" },
 			}),
 		},
 	});
-	const imported = source.readImportedToken();
+	const imported = source.readImportedToken(PRIMARY_GATEWAY.authOrigin);
 	assert.equal(imported.ok, true);
 	assert.equal(imported.value?.authPath, authPath);
 	assert.equal(Redacted.value(imported.value.token), "imported-token");
@@ -64,10 +66,10 @@ test("imports a usable OpenCode auth-file token", () => {
 test("auth file parsing rejects malformed storage instead of trusting it", () => {
 	const authPath = "/tmp/opencode-auth.json";
 	const source = createAuthSource({
-		environment: { OPENCODE_CLOUDFLARE_AUTH_FILE: authPath },
+		environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
 		files: { [authPath]: "[]" },
 	});
-	const imported = source.readImportedToken();
+	const imported = source.readImportedToken(PRIMARY_GATEWAY.authOrigin);
 	assert.equal(imported.ok, false);
 	assert.equal(imported.error.reason, "invalid-auth-file");
 });
@@ -78,24 +80,25 @@ test("only accepts the exact shell-free Cloudflare Access login command", () => 
 		"access",
 		"login",
 		"--no-verbose",
-		"-app=https://opencode.cloudflare.dev",
-	]);
+		`-app=${PRIMARY_GATEWAY.authOrigin}`,
+	], PRIMARY_GATEWAY.authOrigin);
 	assert.equal(accepted.ok, true);
 
 	for (const command of [
-		"cloudflared access login -app=https://opencode.cloudflare.dev",
+		`cloudflared access login -app=${PRIMARY_GATEWAY.authOrigin}`,
 		["sh", "-lc", "echo token"],
 		["cloudflared", "access", "login", "--no-verbose"],
 		["cloudflared", "access", "login", "-app=https://example.test"],
+		["cloudflared", "access", "login", `-app=${SECONDARY_GATEWAY.authOrigin}`],
 		[
 			"cloudflared",
 			"access",
 			"login",
-			"-app=https://opencode.cloudflare.dev",
-			"--app=https://opencode.cloudflare.dev",
+			`-app=${PRIMARY_GATEWAY.authOrigin}`,
+			`--app=${PRIMARY_GATEWAY.authOrigin}`,
 		],
 	]) {
-		const result = validateGatewayAuthCommand(command);
+		const result = validateGatewayAuthCommand(command, PRIMARY_GATEWAY.authOrigin);
 		assert.equal(result.ok, false);
 		assert.equal(result.error.reason, "untrusted-auth-command");
 	}
@@ -104,9 +107,10 @@ test("only accepts the exact shell-free Cloudflare Access login command", () => 
 test("native credential resolution prefers a stored token over OpenCode import", async () => {
 	const authPath = "/tmp/opencode-auth.json";
 	const auth = createGatewayProviderAuth(
+		PRIMARY_GATEWAY,
 		createAuthSource({
-			environment: { OPENCODE_CLOUDFLARE_AUTH_FILE: authPath },
-			files: { [authPath]: JSON.stringify({ "https://opencode.cloudflare.dev": { token: "imported-token" } }) },
+			environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
+			files: { [authPath]: JSON.stringify({ [PRIMARY_GATEWAY.authOrigin]: { token: "imported-token" } }) },
 		}),
 		async () => undefined,
 		() => 1000,
@@ -126,18 +130,19 @@ test("native credential resolution prefers a stored token over OpenCode import",
 test("environment override and OpenCode import remain usable when nothing is stored", async () => {
 	const authPath = "/tmp/opencode-auth.json";
 	const auth = createGatewayProviderAuth(
+		PRIMARY_GATEWAY,
 		createAuthSource({
-			environment: { OPENCODE_CLOUDFLARE_AUTH_FILE: authPath },
-			files: { [authPath]: JSON.stringify({ "https://opencode.cloudflare.dev": { token: "imported-token" } }) },
+			environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
+			files: { [authPath]: JSON.stringify({ [PRIMARY_GATEWAY.authOrigin]: { token: "imported-token" } }) },
 		}),
 		async () => undefined,
 		() => 1000,
 	);
 	const fromEnv = await auth.apiKey.resolve({
-		ctx: { env: async (name) => name === "OPENCODE_CLOUDFLARE_TOKEN" ? "environment-token" : undefined, fileExists: async () => false },
+		ctx: { env: async (name) => name === "PRIVATE_GATEWAY_PRIMARY_TOKEN" ? "environment-token" : undefined, fileExists: async () => false },
 		signal: new AbortController().signal,
 	});
-	assert.equal(fromEnv?.source, "OPENCODE_CLOUDFLARE_TOKEN");
+	assert.equal(fromEnv?.source, "PRIVATE_GATEWAY_PRIMARY_TOKEN");
 	assert.equal(fromEnv?.auth.apiKey, "environment-token");
 
 	const fromImport = await auth.apiKey.resolve({
@@ -151,6 +156,7 @@ test("environment override and OpenCode import remain usable when nothing is sto
 test("expired JWT tokens are not treated as usable credentials", async () => {
 	const expired = jwt(1);
 	const auth = createGatewayProviderAuth(
+		PRIMARY_GATEWAY,
 		createAuthSource(),
 		async () => undefined,
 		() => 10_000,
@@ -166,9 +172,10 @@ test("expired JWT tokens are not treated as usable credentials", async () => {
 test("OAuth login reuses a usable imported token", async () => {
 	const authPath = "/tmp/opencode-auth.json";
 	const oauth = createGatewayOAuthAuth(
+		PRIMARY_GATEWAY,
 		createAuthSource({
-			environment: { OPENCODE_CLOUDFLARE_AUTH_FILE: authPath },
-			files: { [authPath]: JSON.stringify({ "https://opencode.cloudflare.dev": { token: "imported-token" } }) },
+			environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
+			files: { [authPath]: JSON.stringify({ [PRIMARY_GATEWAY.authOrigin]: { token: "imported-token" } }) },
 		}),
 		async () => {
 			throw new Error("login command should not run");
@@ -189,7 +196,7 @@ test("OAuth login reuses a usable imported token", async () => {
 });
 
 test("OAuth refresh honors cancellation and expired imported tokens", async () => {
-	const oauth = createGatewayOAuthAuth(createAuthSource(), async () => undefined, () => 1000);
+	const oauth = createGatewayOAuthAuth(PRIMARY_GATEWAY, createAuthSource(), async () => undefined, () => 1000);
 	const controller = new AbortController();
 	controller.abort();
 	await assert.rejects(
@@ -208,4 +215,81 @@ test("toAuth never returns a token in object stringification", () => {
 	const auth = toGatewayModelAuth(token);
 	assert.doesNotMatch(JSON.stringify(token), /super-secret-access-token/);
 	assert.equal(auth.headers["cf-access-token"], "super-secret-access-token");
+});
+
+test("imports primary and secondary tokens from distinct OpenCode auth-file keys", () => {
+	const authPath = "/tmp/opencode-auth.json";
+	const source = createAuthSource({
+		environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
+		files: {
+			[authPath]: JSON.stringify({
+				[PRIMARY_GATEWAY.authOrigin]: { token: "primary-token" },
+				[SECONDARY_GATEWAY.authOrigin]: { token: "secondary-token" },
+			}),
+		},
+	});
+	const primary = source.readImportedToken(PRIMARY_GATEWAY.authOrigin);
+	const secondary = source.readImportedToken(SECONDARY_GATEWAY.authOrigin);
+	assert.equal(primary.ok, true);
+	assert.equal(secondary.ok, true);
+	assert.equal(Redacted.value(primary.value.token), "primary-token");
+	assert.equal(Redacted.value(secondary.value.token), "secondary-token");
+});
+
+test("Secondary auth lookup does not fall back to the primary well-known key", () => {
+	const authPath = "/tmp/opencode-auth.json";
+	const source = createAuthSource({
+		environment: { PRIVATE_GATEWAY_AUTH_FILE: authPath },
+		files: {
+			[authPath]: JSON.stringify({
+				[`${PRIMARY_GATEWAY.authOrigin}/.well-known/opencode`]: { token: "primary-wellknown-token" },
+			}),
+		},
+	});
+	const secondary = source.readImportedToken(SECONDARY_GATEWAY.authOrigin);
+	assert.equal(secondary.ok, true);
+	assert.equal(secondary.value, undefined);
+});
+
+test("Secondary login accepts only the secondary Access app target", () => {
+	const accepted = validateGatewayAuthCommand([
+		"cloudflared",
+		"access",
+		"login",
+		"--no-verbose",
+		"-app=https://secondary.example.test",
+	], SECONDARY_GATEWAY.authOrigin);
+	assert.equal(accepted.ok, true);
+
+	const rejected = validateGatewayAuthCommand([
+		"cloudflared",
+		"access",
+		"login",
+		`-app=${PRIMARY_GATEWAY.authOrigin}`,
+	], SECONDARY_GATEWAY.authOrigin);
+	assert.equal(rejected.ok, false);
+	assert.equal(rejected.error.reason, "untrusted-auth-command");
+});
+
+test("primary and secondary environment tokens are not interchangeable", async () => {
+	const primaryAuth = createGatewayProviderAuth(PRIMARY_GATEWAY, createAuthSource(), async () => undefined, () => 1000);
+	const secondaryAuth = createGatewayProviderAuth(SECONDARY_GATEWAY, createAuthSource(), async () => undefined, () => 1000);
+	const env = async (name) => {
+		if (name === "PRIVATE_GATEWAY_PRIMARY_TOKEN") return "primary-env-token";
+		if (name === "PRIVATE_GATEWAY_SECONDARY_TOKEN") return "secondary-env-token";
+		return undefined;
+	};
+
+	const workResolved = await primaryAuth.apiKey.resolve({
+		ctx: { env, fileExists: async () => false },
+		signal: new AbortController().signal,
+	});
+	const secondaryResolved = await secondaryAuth.apiKey.resolve({
+		ctx: { env, fileExists: async () => false },
+		signal: new AbortController().signal,
+	});
+	assert.equal(workResolved?.source, "PRIVATE_GATEWAY_PRIMARY_TOKEN");
+	assert.equal(workResolved?.auth.apiKey, "primary-env-token");
+	assert.equal(secondaryResolved?.source, "PRIVATE_GATEWAY_SECONDARY_TOKEN");
+	assert.equal(secondaryResolved?.auth.apiKey, "secondary-env-token");
 });

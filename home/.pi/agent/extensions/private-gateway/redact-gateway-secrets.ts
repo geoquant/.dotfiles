@@ -1,6 +1,6 @@
 import type { AuthResult } from "@earendil-works/pi-ai";
 import type { ExtensionContext, MessageEndEvent } from "@earendil-works/pi-coding-agent";
-import { PROVIDER_ID } from "./constants.ts";
+import { isPrivateGatewayProviderId, type GatewayProfile } from "./private-gateway-profiles.ts";
 
 const BEARER_PREFIX = /^Bearer\s+/i;
 
@@ -48,15 +48,19 @@ export function collectGatewaySecretsFromAuth(auth: AuthResult | undefined): rea
  * @param event - Pi `message_end` event.
  * @param ctx - Extension context, used to scope the rewrite to this provider.
  * @param secrets - Candidate tokens to remove.
+ * @param profiles - Parsed private gateway profiles.
  */
 export function redactGatewayMessageEnd(
 	event: MessageEndEvent,
 	ctx: ExtensionContext,
 	secrets: readonly string[],
+	profiles: readonly GatewayProfile[],
 ): GatewayMessageEndResult | undefined {
 	const message = event.message;
 	if (message.role !== "assistant") return undefined;
-	if (message.provider !== PROVIDER_ID && ctx.model?.provider !== PROVIDER_ID) return undefined;
+	if (!isPrivateGatewayProviderId(profiles, message.provider) && !(ctx.model?.provider && isPrivateGatewayProviderId(profiles, ctx.model.provider))) {
+		return undefined;
+	}
 	if (message.stopReason !== "error" && message.stopReason !== "aborted") return undefined;
 	if (!message.errorMessage || secrets.length === 0) return undefined;
 	const errorMessage = sanitizeGatewaySecretText(message.errorMessage, secrets);
@@ -66,17 +70,22 @@ export function redactGatewayMessageEnd(
 
 /**
  * Create the `message_end` handler that redacts the credential Pi already resolved.
+ *
+ * @param profiles - Parsed private gateway profiles.
  */
-export function createGatewayMessageEndHandler(): (
+export function createGatewayMessageEndHandler(
+	profiles: readonly GatewayProfile[],
+): (
 	event: MessageEndEvent,
 	ctx: ExtensionContext,
 ) => Promise<GatewayMessageEndResult | undefined> {
 	return async (event, ctx) => {
 		if (event.message.role !== "assistant") return undefined;
-		if (event.message.provider !== PROVIDER_ID && ctx.model?.provider !== PROVIDER_ID) return undefined;
+		const providerId = event.message.provider || ctx.model?.provider;
+		if (!providerId || !isPrivateGatewayProviderId(profiles, providerId)) return undefined;
 		try {
-			const auth = await ctx.modelRegistry.getProviderAuth(PROVIDER_ID);
-			return redactGatewayMessageEnd(event, ctx, collectGatewaySecretsFromAuth(auth));
+			const auth = await ctx.modelRegistry.getProviderAuth(providerId);
+			return redactGatewayMessageEnd(event, ctx, collectGatewaySecretsFromAuth(auth), profiles);
 		} catch {
 			return undefined;
 		}

@@ -6,7 +6,8 @@ import { createModels, InMemoryCredentialStore, InMemoryModelsStore } from "@ear
 import { createOpenCodeAuthSource } from "../auth.ts";
 import { buildDoctorReport } from "../doctor.ts";
 import { collectGatewaySecretsFromAuth, redactGatewayMessageEnd, sanitizeGatewaySecretText } from "../redact-gateway-secrets.ts";
-import { createOpencodeCloudflareProvider } from "../provider.ts";
+import { createPrivateGatewayProvider } from "../provider.ts";
+import { FIXTURE_PRIMARY_GATEWAY, FIXTURE_PROFILES, PRIMARY_GATEWAY, SECONDARY_GATEWAY, TEST_PROFILES } from "./profiles.mjs";
 
 const fixturePath = fileURLToPath(new URL("./fixtures/wellknown.json", import.meta.url));
 const fixtureText = readFileSync(fixturePath, "utf8");
@@ -33,11 +34,22 @@ function createAuthSource(files = {}) {
 		fileExists: (path) => Object.hasOwn(files, path),
 		readTextFile: (path) => files[path],
 		now: () => 1000,
+		trustedAuthOrigins: [FIXTURE_PRIMARY_GATEWAY.authOrigin, PRIMARY_GATEWAY.authOrigin, SECONDARY_GATEWAY.authOrigin],
+	});
+}
+
+function createPrimaryProvider(overrides = {}) {
+	return createPrivateGatewayProvider({
+		profile: FIXTURE_PRIMARY_GATEWAY,
+		profiles: FIXTURE_PROFILES,
+		authSource: createAuthSource(),
+		environment: () => undefined,
+		...overrides,
 	});
 }
 
 test("native provider projects models and uses backend-specific APIs", async () => {
-	const provider = createOpencodeCloudflareProvider({
+	const provider = createPrimaryProvider({
 		authSource: createAuthSource(),
 		fetch: createFetch(async (url) => {
 			if (url.endsWith("/.well-known/opencode")) {
@@ -95,7 +107,7 @@ test("native credential resolution and Access headers reach inference", async ()
 		);
 	});
 	await withGlobalFetch(fetchImpl, async () => {
-		const provider = createOpencodeCloudflareProvider({
+		const provider = createPrimaryProvider({
 			authSource: createAuthSource(),
 			fetch: fetchImpl,
 		});
@@ -162,7 +174,7 @@ test("Anthropic and Google wrappers keep Access auth out of native key headers",
 		);
 	});
 	await withGlobalFetch(fetchImpl, async () => {
-		const provider = createOpencodeCloudflareProvider({
+		const provider = createPrimaryProvider({
 			authSource: createAuthSource(),
 			fetch: fetchImpl,
 		});
@@ -202,7 +214,7 @@ test("Anthropic and Google wrappers keep Access auth out of native key headers",
 });
 
 test("unavailable discovery with no stored catalog leaves an empty model list", async () => {
-	const provider = createOpencodeCloudflareProvider({
+	const provider = createPrimaryProvider({
 		authSource: createAuthSource(),
 		fetch: createFetch(async () => new Response("unavailable", { status: 503 })),
 	});
@@ -227,8 +239,9 @@ test("unavailable discovery with no stored catalog leaves an empty model list", 
 
 test("doctor reports health without leaking tokens", async () => {
 	const report = await buildDoctorReport({
+		profiles: FIXTURE_PROFILES,
 		now: 1000,
-		environment: (name) => name === "OPENCODE_CLOUDFLARE_TOKEN" ? gatewayToken : undefined,
+		environment: (name) => name === "PRIVATE_GATEWAY_PRIMARY_TOKEN" ? gatewayToken : undefined,
 		authSource: createAuthSource(),
 		fetch: createFetch(async (url) => {
 			if (url.endsWith("/.well-known/opencode")) {
@@ -236,9 +249,9 @@ test("doctor reports health without leaking tokens", async () => {
 			}
 			throw new Error(`unexpected fetch ${url}`);
 		}),
-		piAuthStatus: "stored",
+		piAuthStatuses: { [FIXTURE_PRIMARY_GATEWAY.id]: "stored" },
 	});
-	assert.match(report, /OpenCode Cloudflare doctor/);
+	assert.match(report, /Private Gateway doctor/);
 	assert.match(report, /Live discovery: ok/);
 	assert.match(report, /Enabled backends:/);
 	assert.match(report, /Models available: /);
@@ -247,15 +260,67 @@ test("doctor reports health without leaking tokens", async () => {
 
 test("doctor stays clean when live discovery is unavailable", async () => {
 	const report = await buildDoctorReport({
+		profiles: FIXTURE_PROFILES,
 		now: 1000,
 		environment: () => undefined,
 		authSource: createAuthSource(),
 		fetch: createFetch(async () => new Response("unavailable", { status: 503, statusText: "Unavailable" })),
-		piAuthStatus: "missing",
+		piAuthStatuses: { [FIXTURE_PRIMARY_GATEWAY.id]: "missing" },
 	});
 	assert.match(report, /Live discovery: Gateway configuration request failed with HTTP 503 Unavailable/);
 	assert.match(report, /Models available: 0/);
 	assert.match(report, /Catalog: unavailable/);
+});
+
+test("doctor reports secondary models after omitting primary gateway duplicates", async () => {
+	const authPath = "/home/tester/.local/share/opencode/auth.json";
+	const report = await buildDoctorReport({
+		profiles: [FIXTURE_PRIMARY_GATEWAY, SECONDARY_GATEWAY],
+		now: 1000,
+		environment: () => undefined,
+		authSource: createAuthSource({
+			[authPath]: JSON.stringify({
+				[FIXTURE_PRIMARY_GATEWAY.authOrigin]: { token: gatewayToken },
+				[SECONDARY_GATEWAY.authOrigin]: { token: gatewayToken },
+			}),
+		}),
+		fetch: createFetch(async (url) => {
+			if (url === `${FIXTURE_PRIMARY_GATEWAY.authOrigin}/.well-known/opencode`) {
+				return new Response(JSON.stringify({
+					enabled_providers: ["openai"],
+					provider: {
+						openai: {
+							options: { baseURL: `${FIXTURE_PRIMARY_GATEWAY.gatewayOrigin}/openai` },
+							models: { "gpt-4o": {} },
+						},
+					},
+				}), { status: 200 });
+			}
+			if (url === `${SECONDARY_GATEWAY.authOrigin}/.well-known/opencode`) {
+				return new Response(JSON.stringify({
+					enabled_providers: ["openai"],
+					provider: {
+						openai: {
+							options: { baseURL: `${SECONDARY_GATEWAY.gatewayOrigin}/openai` },
+							models: {
+								"gpt-4o": {},
+								"placeholder-secondary-model": { name: "Placeholder Secondary Model" },
+							},
+						},
+					},
+				}), { status: 200 });
+			}
+			throw new Error(`unexpected fetch ${url}`);
+		}),
+		piAuthStatuses: {
+			[FIXTURE_PRIMARY_GATEWAY.id]: "stored",
+			[SECONDARY_GATEWAY.id]: "stored",
+		},
+	});
+	const secondarySection = report.split("\n\n").find((section) => section.startsWith("Private Gateway 2 doctor"));
+	assert.ok(secondarySection);
+	assert.match(secondarySection, /Models available: 1/);
+	assert.match(secondarySection, /Live discovery: ok/);
 });
 
 test("collects secrets from Pi-resolved provider auth", () => {
@@ -278,6 +343,25 @@ test("secret sanitizer removes tokens from error text", () => {
 	assert.doesNotMatch(sanitized, new RegExp(gatewayToken));
 });
 
+test("message_end redacts secondary gateway tokens from persisted assistant errors", () => {
+	const rewritten = redactGatewayMessageEnd(
+		{
+			type: "message_end",
+			message: {
+				role: "assistant",
+				content: [],
+				provider: SECONDARY_GATEWAY.id,
+				stopReason: "error",
+				errorMessage: `Invalid token ${gatewayToken}`,
+			},
+		},
+		{ model: { provider: SECONDARY_GATEWAY.id } },
+		[gatewayToken],
+		TEST_PROFILES,
+	);
+	assert.equal(rewritten?.message.errorMessage, "Invalid token <redacted>");
+});
+
 test("message_end redacts gateway tokens from persisted assistant errors", () => {
 	const rewritten = redactGatewayMessageEnd(
 		{
@@ -292,9 +376,115 @@ test("message_end redacts gateway tokens from persisted assistant errors", () =>
 		},
 		{ model: { provider: "opencode.cloudflare.dev" } },
 		[gatewayToken],
+		FIXTURE_PROFILES,
 	);
 	assert.equal(rewritten?.message.errorMessage, "Invalid token <redacted>");
 	assert.doesNotMatch(rewritten?.message.errorMessage ?? "", new RegExp(gatewayToken));
+});
+
+test("native secondary provider projects models onto the secondary provider id", async () => {
+	const provider = createPrivateGatewayProvider({
+		profile: SECONDARY_GATEWAY,
+		profiles: TEST_PROFILES,
+		authSource: createAuthSource(),
+		environment: () => undefined,
+		fetch: createFetch(async (url) => {
+			if (url === "https://secondary.example.test/.well-known/opencode") {
+				return new Response(JSON.stringify({
+					enabled_providers: ["anthropic"],
+					provider: {
+						anthropic: {
+							options: { baseURL: "https://secondary-gateway.example.test/anthropic" },
+							models: { "placeholder-secondary-model": { name: "Placeholder Secondary Model", reasoning: true } },
+						},
+					},
+				}), { status: 200 });
+			}
+			throw new Error(`unexpected fetch ${url}`);
+		}),
+	});
+	const models = createModels({
+		credentials: new InMemoryCredentialStore(),
+		modelsStore: new InMemoryModelsStore(),
+		authContext: {
+			env: async () => gatewayToken,
+			fileExists: async () => false,
+		},
+	});
+	models.setProvider(provider);
+	await models.login(SECONDARY_GATEWAY.id, "api_key", {
+		signal: new AbortController().signal,
+		prompt: async () => gatewayToken,
+		notify() {},
+	});
+	const refreshed = await models.refresh({ force: true });
+	assert.equal(refreshed.errors.size, 0);
+	const catalog = models.getModels(SECONDARY_GATEWAY.id);
+	assert.ok(catalog.some((model) => model.id === "placeholder-secondary-model"));
+	assert.ok(catalog.every((model) => model.provider === SECONDARY_GATEWAY.id));
+	assert.ok(catalog.every((model) => model.baseUrl.startsWith(SECONDARY_GATEWAY.gatewayOrigin)));
+});
+
+test("Secondary catalog omits models already served by the primary gateway", async () => {
+	const authPath = "/home/tester/.local/share/opencode/auth.json";
+	const provider = createPrivateGatewayProvider({
+		profile: SECONDARY_GATEWAY,
+		profiles: [FIXTURE_PRIMARY_GATEWAY, SECONDARY_GATEWAY],
+		authSource: createAuthSource({
+			[authPath]: JSON.stringify({
+				[FIXTURE_PRIMARY_GATEWAY.authOrigin]: { token: "primary-token" },
+				[SECONDARY_GATEWAY.authOrigin]: { token: "secondary-token" },
+			}),
+		}),
+		environment: () => undefined,
+		fetch: createFetch(async (url) => {
+			if (url === `${SECONDARY_GATEWAY.authOrigin}/.well-known/opencode`) {
+				return new Response(JSON.stringify({
+					enabled_providers: ["openai"],
+					provider: {
+						openai: {
+							options: { baseURL: `${SECONDARY_GATEWAY.gatewayOrigin}/openai` },
+							models: {
+								"gpt-4o": {},
+								"placeholder-secondary-model": { name: "Placeholder Secondary Model" },
+							},
+						},
+					},
+				}), { status: 200 });
+			}
+			if (url === `${FIXTURE_PRIMARY_GATEWAY.authOrigin}/.well-known/opencode`) {
+				return new Response(JSON.stringify({
+					enabled_providers: ["openai"],
+					provider: {
+						openai: {
+							options: { baseURL: `${FIXTURE_PRIMARY_GATEWAY.gatewayOrigin}/openai` },
+							models: { "gpt-4o": {} },
+						},
+					},
+				}), { status: 200 });
+			}
+			throw new Error(`unexpected fetch ${url}`);
+		}),
+	});
+	const models = createModels({
+		credentials: new InMemoryCredentialStore(),
+		modelsStore: new InMemoryModelsStore(),
+		authContext: {
+			env: async () => undefined,
+			fileExists: async () => false,
+		},
+	});
+	models.setProvider(provider);
+	await models.login(SECONDARY_GATEWAY.id, "api_key", {
+		signal: new AbortController().signal,
+		prompt: async () => gatewayToken,
+		notify() {},
+	});
+	const refreshed = await models.refresh({ force: true });
+	assert.equal(refreshed.errors.size, 0);
+	const catalog = models.getModels(SECONDARY_GATEWAY.id);
+	assert.deepEqual(catalog.map((model) => model.id), ["placeholder-secondary-model"]);
+	assert.ok(catalog.every((model) => model.provider === SECONDARY_GATEWAY.id));
 });
 
 test("message_end leaves unrelated providers and non-error turns unchanged", () => {
@@ -311,6 +501,7 @@ test("message_end leaves unrelated providers and non-error turns unchanged", () 
 		},
 		{ model: { provider: "openai" } },
 		[gatewayToken],
+		FIXTURE_PROFILES,
 	);
 	assert.equal(unrelated, undefined);
 
@@ -327,6 +518,7 @@ test("message_end leaves unrelated providers and non-error turns unchanged", () 
 		},
 		{ model: { provider: "opencode.cloudflare.dev" } },
 		[gatewayToken],
+		FIXTURE_PROFILES,
 	);
 	assert.equal(success, undefined);
 });

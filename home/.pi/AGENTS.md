@@ -15,7 +15,7 @@ npm workspace for pi agent extensions. TypeScript, ESM-only.
 │   ├── settings.json     # Provider, model, theme, packages, interview config
 │   ├── cloak.json        # Secret masking patterns for agent output
 │   └── extensions/       # Local TypeScript extensions
-│       ├── opencode-cloudflare/  # Cloudflare gateway provider (auth, catalog, dispatch)
+│       ├── private-gateway/      # Private inference gateway providers (auth, catalog, dispatch)
 │       ├── pi-skill-toggle/      # Skill discovery, toggle UI, frontmatter patching
 │       ├── save-md/              # Save assistant responses as Markdown
 │       ├── pi-cloak/             # Secret cloaking extension
@@ -55,7 +55,7 @@ Skills live in `home/.agents/skills/` and stow to `~/.agents/skills/`. Do not co
 - Editing `agent/settings.json` outside dotfiles repo (stow overwrites)
 - Adding runtime state files to git (most of `agent/*` is gitignored, only extensions/settings un-ignored)
 - Duplicating skills under `agent/skills/` — they belong in `home/.agents/skills/`
-- Writing any model ID from a local `opencode-cloudflare` overlay into tests, fixtures, docs, examples, source comments, tracked configuration, or any other version-controlled file. Overlay models are internal/private; use public catalog models or generic placeholders in tracked artifacts.
+- Writing any model ID from a local `private-gateway` overlay into tests, fixtures, docs, examples, source comments, tracked configuration, or any other version-controlled file. Overlay models are internal/private; use public catalog models or generic placeholders in tracked artifacts.
 
 ## KEY SETTINGS
 
@@ -80,6 +80,6 @@ Most of `agent/` is gitignored by default. Tracked files are explicitly un-ignor
 ## NOTES
 
 - Pi Web Tools is installed from `git:github.com/dmmulroy/pi-web-tools`; `web-tools.json` is only Helium browser profile config
-- opencode-cloudflare supports native pi `/login` + importing existing OpenCode auth
-- Treat model IDs supplied through local `opencode-cloudflare` overlays as private information: never expose them in version-controlled content.
+- private-gateway supports native pi `/login` + importing existing OpenCode auth
+- Treat model IDs supplied through local `private-gateway` overlays as private information: never expose them in version-controlled content.
 - pi-skill-toggle has a full UI layer (overlay, render, view-model)

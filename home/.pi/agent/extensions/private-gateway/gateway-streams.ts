@@ -41,7 +41,7 @@ function nativeApi(fileName: string): ProviderStreams {
 }
 
 /**
- * Native mixed-API streamers with the smallest wrappers the work gateway requires.
+ * Native mixed-API streamers with the smallest wrappers private gateways require.
  *
  * Anthropic must not send `x-api-key`. Google must not put the Access token in
  * the API-key query parameter. Remaining backends use Bearer auth as-is.

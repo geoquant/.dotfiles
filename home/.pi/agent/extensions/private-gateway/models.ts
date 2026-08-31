@@ -1,6 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
-import { PROVIDER_ID, type Backend } from "./constants.ts";
+import { type Backend } from "./constants.ts";
 import {
 	type GatewayConfig,
 	type GatewayHeaderMap,
@@ -107,6 +107,7 @@ function toModelFromGateway(
 	modelId: string,
 	config: GatewayModelConfig,
 	api: Api,
+	providerId: string,
 	baseUrl: string,
 	headers?: GatewayHeaderMap,
 	compat?: Model<Api>["compat"],
@@ -115,7 +116,7 @@ function toModelFromGateway(
 		id: config.requestModelId ?? modelId,
 		name: config.name ?? modelId,
 		api,
-		provider: PROVIDER_ID,
+		provider: providerId,
 		baseUrl,
 		reasoning: config.reasoning ?? true,
 		thinkingLevelMap: config.thinkingLevelMap,
@@ -135,13 +136,14 @@ function toModelFromGateway(
 
 function projectBuiltInModel(
 	model: Model<Api>,
+	providerId: string,
 	baseUrl: string,
 	headers: GatewayHeaderMap,
 	config: GatewayModelConfig | undefined,
 ): Model<Api> {
 	return applyGatewayOverrides({
 		...model,
-		provider: PROVIDER_ID,
+		provider: providerId,
 		baseUrl,
 		headers: modelHeaders(headers),
 	}, config);
@@ -203,6 +205,7 @@ export function projectGatewayModels(config: GatewayConfig): readonly Model<Api>
 					modelId,
 					modelConfig,
 					"openai-completions",
+					config.providerId,
 					route.baseUrl,
 					route.headers,
 					WORKERS_COMPAT,
@@ -223,7 +226,7 @@ export function projectGatewayModels(config: GatewayConfig): readonly Model<Api>
 		for (const builtIn of builtIns) {
 			const gatewayModel = resolveGatewayModelConfig(builtIn.id, route.models, backend);
 			if (isBlacklistedModel(builtIn.id, backend, route.blacklist, gatewayModel)) continue;
-			add(projectBuiltInModel(builtIn, route.baseUrl, route.headers, gatewayModel));
+			add(projectBuiltInModel(builtIn, config.providerId, route.baseUrl, route.headers, gatewayModel));
 			used.add(builtIn.id);
 		}
 		for (const [fullModelId, modelConfig] of Object.entries(route.models)) {
@@ -231,10 +234,26 @@ export function projectGatewayModels(config: GatewayConfig): readonly Model<Api>
 			if (used.has(modelId) || isBlacklistedModel(fullModelId, backend, route.blacklist, modelConfig)) continue;
 			const api = getBackendApi(backend);
 			const compat = api === "openai-completions" ? OPENAI_COMPLETIONS_COMPAT : undefined;
-			add(toModelFromGateway(modelId, modelConfig, api, route.baseUrl, route.headers, compat));
+			add(toModelFromGateway(modelId, modelConfig, api, config.providerId, route.baseUrl, route.headers, compat));
 		}
 	}
 	return models;
+}
+
+/**
+ * Keep secondary-gateway models that the primary gateway does not already serve.
+ *
+ * Shared model ids stay on the primary catalog.
+ *
+ * @param secondaryModels - Models projected from the secondary gateway catalog.
+ * @param primaryModels - Models projected from the primary gateway catalog.
+ */
+export function excludeDuplicateGatewayModels(
+	secondaryModels: readonly Model<Api>[],
+	primaryModels: readonly Model<Api>[],
+): readonly Model<Api>[] {
+	const primaryIds = new Set(primaryModels.map((model) => model.id));
+	return secondaryModels.filter((model) => !primaryIds.has(model.id));
 }
 
 function backendFromBaseUrl(baseUrl: string): Backend | undefined {
