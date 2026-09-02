@@ -29,7 +29,7 @@ home/.config/opencode/plugins/git-ai.ts
 home/.plannotator/*
 !home/.plannotator/config.json
 
-# herdr runtime/state
+# Herdr runtime/state (installed plugin sources are tracked in plugins.txt)
 home/.config/herdr/*.log
 home/.config/herdr/session-history.json
 home/.config/herdr/session.json

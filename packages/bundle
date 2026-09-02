@@ -3,6 +3,7 @@
 cask_args appdir: "/Applications"
 
 tap "dmmulroy/tap"
+tap "plannotator/tap"
 
 brew "ast-grep"
 brew "btop"
@@ -27,6 +28,7 @@ brew "lua-language-server"
 brew "luacheck"
 brew "mole"
 brew "neovim"
+brew "plannotator-tui"
 brew "python@3.14"
 brew "ripgrep"
 brew "shellcheck"
