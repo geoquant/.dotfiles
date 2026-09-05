@@ -18,7 +18,7 @@ This repository contains my personal development environment configuration, mana
 
 ```bash
 # Clone the repository
-git clone https://github.com/dmmulroy/.dotfiles.git ~/.dotfiles
+git clone https://github.com/geoquant/.dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 
 # Full setup (installs everything)
@@ -274,7 +274,7 @@ dot package remove docker base  # Remove docker from base bundle only
 
 1. **Clone repository:**
    ```bash
-   git clone https://github.com/dmmulroy/.dotfiles.git ~/.dotfiles
+   git clone https://github.com/geoquant/.dotfiles.git ~/.dotfiles
    cd ~/.dotfiles
    ```
 
