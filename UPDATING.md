@@ -30,6 +30,11 @@ onto Dillon's history stay conflict-free:
     paths, python→python3, and an `npx`/`bunx` un-alias guard when `vpx`
     isn't installed
   - `conf.d/{direnv,fnm,opencode,profile-guard}.fish`, `functions/{grel,__git.delete_branches}.fish`
+- **Paid/licensed skills live in the PRIVATE repo `geoquant/skills-private`**
+  (ui.sh, animations.dev / Emil Kowalski content). They are gitignored here
+  and symlinked into `home/.agents/skills/`. On a new machine:
+  `git clone git@github.com:geoquant/skills-private.git ~/.skills-private`
+  then `for n in ~/.skills-private/skills/*; ln -s $n ~/.dotfiles/home/.agents/skills/(basename $n); end`
 - **Per-machine, gitignored, recreate by hand on each machine:**
   - `~/.config/fish/conf.d/secrets.fish` — API keys
   - `~/.config/fish/conf.d/machine.fish` — MACHINE_PROFILE (personal/work)

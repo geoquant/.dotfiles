@@ -71,3 +71,34 @@ home/.pi/agent/extensions/**/node_modules/
 
 # Per-machine identity (jonnie) — never synced
 home/.config/fish/conf.d/machine.fish
+
+# Paid / licensed skill content (ui.sh, animations.dev, Emil Kowalski) —
+# lives in the private repo geoquant/skills-private, symlinked in locally.
+# NEVER commit these to this public repo.
+home/.agents/skills/add-dark-mode
+home/.agents/skills/animate
+home/.agents/skills/animation-accessibility
+home/.agents/skills/animation-performance
+home/.agents/skills/animation-vocabulary
+home/.agents/skills/brand-kit
+home/.agents/skills/canonicalize-tailwind
+home/.agents/skills/componentize
+home/.agents/skills/css-animations
+home/.agents/skills/dark-mode-image
+home/.agents/skills/debug-animation
+home/.agents/skills/design
+home/.agents/skills/emil-design-engineering
+home/.agents/skills/find-animation-opportunities
+home/.agents/skills/gesture-ui
+home/.agents/skills/ideas
+home/.agents/skills/improve-animations
+home/.agents/skills/make-responsive
+home/.agents/skills/markup-from-image
+home/.agents/skills/motion-brief
+home/.agents/skills/motion-react
+home/.agents/skills/pick-ui-library
+home/.agents/skills/review-animations
+home/.agents/skills/scroll-animations
+home/.agents/skills/swiss-design
+home/.agents/skills/ui
+home/.agents/skills/ui-prototype
