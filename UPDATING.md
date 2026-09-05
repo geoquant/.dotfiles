@@ -23,6 +23,17 @@ onto Dillon's history stay conflict-free:
   - `dot` — `GITHUB_EMAIL`
   - `home/.plannotator/config.json` — `displayName`
   - `README.md` — clone URLs
+  - `home/.pi/agent/mcp.json` — my MCP servers (context7, grep_app,
+    agentation, cf-portal); Dillon's points at his private servers
+- **My additive fish config** (never conflicts):
+  - `conf.d/jonnie.fish` — personal aliases (eza/bat/ks/oc/claude), extra
+    paths, python→python3, and an `npx`/`bunx` un-alias guard when `vpx`
+    isn't installed
+  - `conf.d/{direnv,fnm,opencode,profile-guard}.fish`, `functions/{grel,__git.delete_branches}.fish`
+- **Per-machine, gitignored, recreate by hand on each machine:**
+  - `~/.config/fish/conf.d/secrets.fish` — API keys
+  - `~/.config/fish/conf.d/machine.fish` — MACHINE_PROFILE (personal/work)
+    + expected opencode key fingerprint
 
 If Dillon adds a skill with the same name as one of mine, rename mine once.
 

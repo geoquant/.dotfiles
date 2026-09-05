@@ -68,3 +68,6 @@ home/.pi/agent/extensions/**/node_modules/
 !home/.pi/agent/mcp.json
 !home/.pi/agent/APPEND_SYSTEM.md
 
+
+# Per-machine identity (jonnie) — never synced
+home/.config/fish/conf.d/machine.fish
