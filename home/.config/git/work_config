@@ -1,4 +1,18 @@
 [user]
 	email = "jonnie@cloudflare.com"
 	name = "Jonnie Lappen"
-	signingkey = "~/.ssh/id_ed25519.pub"
+	signingkey = "~/.ssh/cloudflare/id_ed25519.pub"
+
+# Do not inherit a personal signing helper from local_config.
+[gpg "ssh"]
+	program = ssh-keygen
+
+# Keep work signatures enabled even if personal settings differ.
+[commit]
+	gpgSign = true
+[tag]
+	gpgSign = true
+
+# Machine-specific work keys can override the setup-script default above.
+[include]
+	path = "~/.config/git/work_local_config"

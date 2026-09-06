@@ -19,7 +19,7 @@ onto Dillon's history stay conflict-free:
 - **Docs like this one** → new files (`UPDATING.md`), not edits to `README.md`.
 - **Edited shared files** (the only rebase-conflict surface, all tiny):
   - `home/.config/git/config` — my identity + signing key
-  - `home/.config/git/work_config` — jonnie@cloudflare.com (applies under `~/Code/work/`)
+  - `home/.config/git/work_config` — work identity and Cloudflare SSH signing key (applies under `~/Code/work/` or by GitLab remote URL, including worktrees)
   - `dot` — `GITHUB_EMAIL`
   - `home/.plannotator/config.json` — `displayName`
   - `README.md` — clone URLs
@@ -41,6 +41,49 @@ onto Dillon's history stay conflict-free:
     + expected opencode key fingerprint
 
 If Dillon adds a skill with the same name as one of mine, rename mine once.
+
+## Git identities and signing
+
+Personal repositories use the identity in `home/.config/git/config`. Work
+repositories select `work_config` by their GitLab remote URL (SSH or HTTPS),
+regardless of checkout location, or by the existing `~/Code/work/` fallback.
+Do not put an unconditional work identity in `~/.gitconfig`: Git reads that file
+later and it overrides the shared personal/work selection.
+
+Authentication and commit signing are separate. GitHub HTTPS uses the existing
+`gh` credential helper; Cloudflare SSH authentication remains managed by the
+Cloudflare setup. Work signing uses `~/.ssh/cloudflare/id_ed25519.pub` and its
+private key/agent. Personal signing defaults to `~/.ssh/id_ed25519.pub`; it needs
+a separate personal key registered as a signing key on GitHub. Never copy private
+keys or tokens into this repository or reuse the work key for personal signing.
+
+For machine-specific overrides, create real, **unstowed** files:
+
+- `~/.config/git/local_config` — personal identity/signing overrides, loaded
+  before work selection.
+- `~/.config/git/work_local_config` — work signing overrides, loaded last within
+  `work_config`.
+
+These files stay outside the dotfiles repository and survive restows. A personal
+`gpg.ssh.program` override can load an encrypted signing key from macOS Keychain
+before invoking `ssh-keygen`; `work_config` resets the program to `ssh-keygen`
+so work commits do not depend on personal credentials. Keep machine-specific
+helpers (for example `~/.local/bin/git-sign-personal`), allowed-signers files,
+and keys outside this repository.
+
+On macOS, store an encrypted key's passphrase using
+`/usr/bin/ssh-add --apple-use-keychain <private-key-path>`. A signing helper can
+run that command again before signing to reload the key after an agent restart.
+Register only the public key with GitHub using
+`gh ssh-key add <public-key-path> --type signing`; the CLI needs the
+`admin:ssh_signing_key` scope. This does not change HTTPS authentication.
+
+Signing remains required; a new machine must provision its own keys before
+committing. Each machine has its own private key and Keychain entry; neither is
+synced by `dot update`.
+Check effective settings inside each repository with
+`git config --show-origin --get user.email` and
+`git config --show-origin --get user.signingkey`.
 
 ## Day-to-day: sync my own machines
 
