@@ -68,8 +68,9 @@ These files stay outside the dotfiles repository and survive restows. A personal
 `gpg.ssh.program` override can load an encrypted signing key from macOS Keychain
 before invoking `ssh-keygen`; `work_config` resets the program to `ssh-keygen`
 so work commits do not depend on personal credentials. Keep machine-specific
-helpers (for example `~/.local/bin/git-sign-personal`), allowed-signers files,
-and keys outside this repository.
+helpers (for example `~/.config/git/git-sign-personal`), allowed-signers files,
+and keys outside this repository. Do not use `~/.local/bin` for machine-local
+helpers when that directory is itself a Stow symlink into the repository.
 
 On macOS, store an encrypted key's passphrase using
 `/usr/bin/ssh-add --apple-use-keychain <private-key-path>`. A signing helper can
