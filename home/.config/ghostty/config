@@ -1911,6 +1911,10 @@ title = ghostty
 # overwrite previously set values. The list of actions is available in
 # the documentation or using the `ghostty +list-actions` command.
 #
+# Ctrl-L clears Ghostty's visible screen and scrollback. Keep this in Ghostty
+# rather than the shell so it works consistently across all configured shells.
+keybind = ctrl+l=clear_screen
+#
 # Trigger: `+`-separated list of keys and modifiers. Example: `ctrl+a`,
 # `ctrl+shift+b`, `up`.
 #
