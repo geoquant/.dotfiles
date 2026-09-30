@@ -24,6 +24,12 @@
     "cf-portal": {
       "url": "https://portal.mcp.cfdata.org/mcp?codemode=search_and_execute"
     },
+    "uidotsh": {
+      "url": "https://ui.sh/mcp?agent=pi",
+      "headers": {
+        "Authorization": "Bearer ${UIDOTSH_TOKEN}"
+      }
+    },
     "agentation": {
       "command": "npx",
       "args": ["-y", "agentation-mcp", "server"]
