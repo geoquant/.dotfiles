@@ -1,0 +1,5 @@
+#!/bin/zsh
+set -a
+source "$HOME/.config/the-feed/demo.env"
+set +a
+exec /opt/homebrew/bin/opencode "$@"

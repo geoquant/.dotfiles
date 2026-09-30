@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly DEFAULT_ACCOUNT_ID="64f8d465c4a3727bbd3af3fb51def118"
+readonly DEFAULT_GATEWAY_ID="jev-projects"
+readonly KEYCHAIN_SERVICE="cloudflare-jev-projects"
+
+usage() {
+  cat <<'EOF'
+Usage: jev [input.json|-]
+
+Call Cloudflare's typesafe/jev model through AI Gateway. The input must be a
+JSON object containing "state" and "questions". Reads stdin when no file or -
+is given.
+
+Environment overrides:
+  CLOUDFLARE_ACCOUNT_ID
+  CLOUDFLARE_GATEWAY_ID
+  CLOUDFLARE_API_TOKEN
+EOF
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if (( $# > 1 )); then
+  usage >&2
+  exit 2
+fi
+
+account_id="${CLOUDFLARE_ACCOUNT_ID:-$DEFAULT_ACCOUNT_ID}"
+gateway_id="${CLOUDFLARE_GATEWAY_ID:-$DEFAULT_GATEWAY_ID}"
+
+if [[ -n ${CLOUDFLARE_API_TOKEN:-} ]]; then
+  api_token="$CLOUDFLARE_API_TOKEN"
+else
+  api_token="$(security find-generic-password -a "$account_id" -s "$KEYCHAIN_SERVICE" -w 2>/dev/null)" || {
+    echo "jev: Cloudflare token not found in Keychain service $KEYCHAIN_SERVICE" >&2
+    exit 1
+  }
+fi
+
+input_file="${1:--}"
+if [[ $input_file == "-" ]]; then
+  input_json="$(cat)"
+else
+  input_json="$(<"$input_file")"
+fi
+
+if ! jq -e '
+  type == "object" and
+  has("state") and
+  (.questions | type == "object" and length > 0)
+' >/dev/null <<<"$input_json"; then
+  echo 'jev: input must be a JSON object with "state" and a non-empty "questions" object' >&2
+  exit 2
+fi
+
+payload="$(jq -c '{model: "typesafe/jev", input: .}' <<<"$input_json")"
+
+curl --fail-with-body --silent --show-error \
+  --request POST \
+  "https://api.cloudflare.com/client/v4/accounts/${account_id}/ai/run" \
+  --header "Authorization: Bearer ${api_token}" \
+  --header "cf-aig-gateway-id: ${gateway_id}" \
+  --header "Content-Type: application/json" \
+  --data "$payload" \
+  | jq '.'

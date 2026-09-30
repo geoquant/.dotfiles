@@ -6,6 +6,14 @@ disable-model-invocation: true
 
 Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.
 
+In Pi, invoke this skill as `/skill:show-me` or the synchronized `/show-me` compatibility alias.
+
+## Rendering contract
+
+When the visual describes component interaction, runtime control flow, request/data flow, or a state transition, **always output a Mermaid fenced block** using exactly ` ```mermaid ` as the opening fence. Do not substitute a `text`, `tsx`, or prose sketch for Mermaid in those cases. Pi renders Mermaid fences as Unicode terminal diagrams.
+
+Keep Mermaid diagrams terminal-friendly with a hard compactness budget: target no more than roughly 80 columns, use `flowchart TD`/`TB` by default, keep node labels to about 16 characters, use at most 6–7 nodes, and omit edge labels unless they are essential. Use `LR` only for a demonstrably short flow. Shorten participant aliases and split a complex explanation into two compact diagrams rather than returning raw Mermaid source. Pi intentionally leaves diagrams wider than the available pane as source text, so do not rely on a wide terminal to make an oversized diagram render. Use a text/tree sketch only for file trees, call trees, pseudocode, or when the user explicitly asks for ASCII/text.
+
 - Show logic or an algorithm as pseudocode:
 
 ```text

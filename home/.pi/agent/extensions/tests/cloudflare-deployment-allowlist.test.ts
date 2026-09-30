@@ -678,6 +678,39 @@ test("rejects malformed policy shapes with actionable errors", () => {
 	}
 });
 
+test("treats Herdr agent prompt text as data, not a policy file operand", () => {
+	const cwd = process.cwd();
+	const policyPath = join(cwd, "agent/cloudflare-deployment-allowlist.json");
+	for (const message of [
+		`Do not alter ${policyPath}; implement browser restore only.`,
+		`Review cloudflare-deployment-allowlist.json without editing it.`,
+		policyPath,
+	]) {
+		const command = `herdr agent prompt feed-builder '${message}' --wait --timeout 120000`;
+		assert.equal(findsCloudflarePolicyMutation(command, cwd), false, command);
+		assert.equal(
+			evaluateCloudflareDeploymentCommand(command, { cwd, policy: makePolicy({}) })._tag,
+			"unrelated",
+		);
+	}
+	for (const command of [
+		`herdr agent prompt feed-builder 'Review only' > ${policyPath}`,
+		`herdr agent prompt feed-builder 'Review only'; rm ${policyPath}`,
+		`herdr agent prompt feed-builder 'Review only' --output ${policyPath}`,
+		`herdr pane run feed-builder 'rm ${policyPath}'`,
+		`herdr agent send-keys feed-builder '${policyPath}'`,
+		`herdr agent prompt '${policyPath}' 'Review only'`,
+	])
+		assert.equal(findsCloudflarePolicyMutation(command, cwd), true, command);
+	assert.equal(
+		evaluateCloudflareDeploymentCommand(
+			"herdr agent prompt feed-builder 'Review only'; wrangler deploy --name unapproved-worker",
+			{ cwd, policy: makePolicy({}) },
+		)._tag,
+		"block",
+	);
+});
+
 test("detects high-confidence bash mutations of the global policy", () => {
 	const cwd = process.cwd();
 	const policyPath = join(cwd, "agent/cloudflare-deployment-allowlist.json");

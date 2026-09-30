@@ -396,12 +396,14 @@ __sync_herdr_plugins() {
 __install_pi() {
     if __command_exists pi; then
         __print_success "pi is already installed"
+        __ensure_pi_visual_settings || return 1
         return 0
     fi
 
     __print_info "Installing pi..."
     if vp install -g @mariozechner/pi-coding-agent; then
         __print_success "pi installed successfully"
+        __ensure_pi_visual_settings || return 1
     else
         __print_error "Failed to install pi"
         return 1
@@ -494,6 +496,64 @@ __stow_dotfiles() {
         __print_success "Dotfiles stowed successfully"
     else
         __print_error "Failed to stow dotfiles"
+        return 1
+    fi
+
+    __ensure_pi_visual_settings
+}
+
+# Keep Pi's visual tooling settings machine-local while making them reproducible
+# through dot init/update. Pi renders Mermaid as Unicode terminal art and the
+# show-me compatibility command expands /skill:show-me; no extra renderer plugin
+# is required. The live settings file intentionally remains untracked because it
+# also contains per-machine provider/package preferences.
+__ensure_pi_visual_settings() {
+    local settings_file="${HOME}/.pi/agent/settings.json"
+
+    if ! __command_exists node; then
+        __print_warning "Node.js not found; skipping Pi Mermaid configuration"
+        return 0
+    fi
+
+    if node - "${settings_file}" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const settingsPath = process.argv[2];
+let settings = {};
+let mode = 0o600;
+
+try {
+  settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+  mode = fs.statSync(settingsPath).mode & 0o777;
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
+
+if (settings === null || typeof settings !== "object" || Array.isArray(settings)) {
+  throw new Error(`Pi settings must be a JSON object: ${settingsPath}`);
+}
+if (settings.markdown !== undefined &&
+    (settings.markdown === null || typeof settings.markdown !== "object" || Array.isArray(settings.markdown))) {
+  throw new Error(`Pi markdown settings must be a JSON object: ${settingsPath}`);
+}
+
+settings.markdown ??= {};
+const changed = settings.markdown.mermaid !== "streaming" || settings.enableSkillCommands !== true;
+if (!changed) process.exit(0);
+settings.markdown.mermaid = "streaming";
+settings.enableSkillCommands = true;
+
+fs.mkdirSync(path.dirname(settingsPath), { recursive: true, mode: 0o700 });
+const temporaryPath = `${settingsPath}.${process.pid}.tmp`;
+fs.writeFileSync(temporaryPath, `${JSON.stringify(settings, null, 2)}\n`, { mode });
+fs.chmodSync(temporaryPath, mode);
+fs.renameSync(temporaryPath, settingsPath);
+NODE
+    then
+        __print_success "Pi visual tooling enabled (Mermaid rendering and /show-me)"
+    else
+        __print_error "Failed to configure Pi Mermaid rendering"
         return 1
     fi
 }
@@ -841,6 +901,7 @@ cmd_update() {
 
     # Update pi and its configured packages.
     if __command_exists pi; then
+        __ensure_pi_visual_settings || return 1
         __print_info "Updating pi and configured packages..."
         if (cd "$DOTFILES_DIR" && pi update --all); then
             __print_success "pi and configured packages updated"

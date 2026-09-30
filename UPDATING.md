@@ -23,8 +23,8 @@ onto Dillon's history stay conflict-free:
   - `dot` — `GITHUB_EMAIL`
   - `home/.plannotator/config.json` — `displayName`
   - `README.md` — clone URLs
-  - `home/.pi/agent/mcp.json` — my MCP servers (context7, grep_app,
-    agentation, cf-portal); Dillon's points at his private servers
+  - `home/.pi/agent/mcp.json` — Pi built-in MCP servers (Executor,
+    cf-portal, agentation, computer); OAuth tokens stay in Pi's credential store
 - **My additive fish config** (never conflicts):
   - `conf.d/jonnie.fish` — personal aliases (eza/bat/ks/oc/claude), extra
     paths, python→python3, and an `npx`/`bunx` un-alias guard when `vpx`
@@ -125,12 +125,79 @@ Then restore secrets (never committed — gitignored):
 | Secret | File |
 |---|---|
 | Exa + Context7 API keys | `~/.config/fish/conf.d/secrets.fish` |
+| ui.sh skill installer token (`UIDOTSH_TOKEN`, required for install/update) | `~/.config/fish/conf.d/secrets.fish` |
 | pi provider auth (opencode) | `~/.pi/agent/auth.json` (or re-login via pi) |
 | opencode (anthropic + opencode) | `~/.local/share/opencode/auth.json` (`opencode auth login`) |
 | Figma MCP | `~/.local/share/opencode/mcp-auth.json` (re-auth on first use) |
 
 Only `secrets.fish` must be restored by hand; the auth files regenerate
 through login flows.
+
+Executor is configured at `https://executor.sh/jonnie/mcp`. On a new machine,
+reload Pi and complete its OAuth flow. Then connect the GitHub source in the
+Executor web app; the endpoint can connect successfully before any sources are
+available. GitHub credentials and Executor OAuth tokens must never be committed.
+
+## ui.sh: required token and global installation
+
+Cloning the private skills repo restores the licensed files, but does not configure
+ui.sh installer access. Each machine needs a user-supplied `UIDOTSH_TOKEN` to install
+or update those skills. Existing downloaded skills do not need a token to be read.
+
+The tracked template is `home/.config/fish/secrets.fish.example`. Add its ui.sh
+setting to your existing `~/.config/fish/conf.d/secrets.fish`, replace the
+placeholder locally, and keep that file private. Do not overwrite other secrets
+or put the real token in this document, shell history, or tracked config.
+
+```fish
+$EDITOR ~/.config/fish/conf.d/secrets.fish
+# Add: set -gx UIDOTSH_TOKEN 'REPLACE_WITH_YOUR_UI_SH_TOKEN'
+# Replace the placeholder in the editor with your own token, then:
+source ~/.config/fish/conf.d/secrets.fish
+source ~/.dotfiles/home/.config/fish/functions/install-uidotsh.fish
+install-uidotsh
+```
+
+`install-uidotsh` rejects a missing, empty, or placeholder token before making
+network requests. It also requires the existing global skill symlinks: first
+restore `~/.skills-private`, link its skills into `home/.agents/skills/` as described
+above, and run `dot stow`. It runs the official installer with `--scope=global`,
+`--agent=codex`, and `--all-skills`. The Codex option selects the shared
+`~/.agents/skills` directory; it does not restrict the skills to Codex.
+
+The installer currently offers nine skills: `add-dark-mode`, `brand-kit`,
+`canonicalize-tailwind`, `componentize`, `dark-mode-image`, `design`, `ideas`,
+`make-responsive`, and `markup-from-image`. This list is not the remote ui.sh MCP
+catalog. Installing these files does not configure an MCP server.
+
+Existing differing files are not overwritten silently. Back up or review local
+customizations before using `install-uidotsh --force`. If the upstream catalog adds
+new skills, move newly created global directories into `~/.skills-private/skills`,
+add their ignored links under `home/.agents/skills/`, and restore the global Stow
+links. Never commit paid skill content to this public dotfiles repository.
+
+## Product description skill
+
+`product-description` by Steve Ruiz is installed from
+[this gist](https://gist.github.com/steveruizok/83ae5c53f2784ebf8f5fe0a3fb94480f).
+Its canonical files are in `~/.skills-private/skills/product-description/`, with
+upstream revision recorded in `SOURCE.md`. This public upstream skill is stored
+privately by preference; it is not paid course content.
+
+After restoring the private repository on another machine, create its ignored
+shared-skill link if absent, then restow:
+
+```sh
+ln -s ../../../../.skills-private/skills/product-description \
+  ~/.dotfiles/home/.agents/skills/product-description
+dot stow
+```
+
+The shared `~/.agents/skills/product-description` path provides global discovery
+for Pi and Codex. The tracked `home/.claude/skills/product-description` symlink
+also provides global Claude Code discovery without another copy. Start a new
+agent session after installation. Do not run the upstream default installer over
+these links; update the canonical private copy and retain its reference layout.
 
 ## Skills: single source of truth
 

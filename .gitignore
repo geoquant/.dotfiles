@@ -3,6 +3,9 @@ lazy-lock.json
 home/.config/fish/fish_variables
 home/.config/fish/conf.d/secrets.fish
 home/.config/fish/conf.d/vault-funcs.fish
+home/.config/the-feed/*.env
+home/.local/share/opencode/auth.json
+home/.local/share/opencode/mcp-auth.json
 home/.config/opencode/amp_stuff/
 .envrc
 backups/
@@ -102,3 +105,6 @@ home/.agents/skills/scroll-animations
 home/.agents/skills/swiss-design
 home/.agents/skills/ui
 home/.agents/skills/ui-prototype
+
+# Personal skill stored in skills-private; restore its local link on bootstrap.
+home/.agents/skills/product-description

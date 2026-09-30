@@ -2,6 +2,14 @@
 
 Global pi config, synced via dotfiles and stowed into `~/.pi`.
 
+`dot stow`, `dot init`, and `dot update` also ensure Pi's built-in Mermaid
+renderer is enabled with `markdown.mermaid: "streaming"`, skill commands are
+enabled, and the `/show-me` compatibility alias is available. The settings
+file stays machine-local because it contains provider and package preferences;
+the dotfiles bootstrap only adds these display/tooling settings without
+overwriting the rest of the file. Pi renders diagrams as Unicode terminal art,
+so very wide diagrams may still need a wider terminal or shorter labels.
+
 ## Extension dependency workspace
 
 Package-style global extensions stay in `agent/extensions/` so pi can still auto-discover them from:
@@ -31,4 +39,9 @@ Current workspace-managed extensions live under:
 
 Pi Web Tools is maintained at [dmmulroy/pi-web-tools](https://github.com/dmmulroy/pi-web-tools) and installed through `agent/settings.json` as a Git package.
 
-After changing extension code or package settings, reload pi with `/reload`.
+MCP servers use Pi's built-in MCP support and are tracked in `agent/mcp.json`.
+OAuth credentials remain machine-local in Pi's credential store. Executor replaces
+the disabled grep.app integration, but its GitHub source must be connected in the
+Executor web app before GitHub tools appear.
+
+After changing extension code, package settings, or MCP configuration, reload pi with `/reload`.

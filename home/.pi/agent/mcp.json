@@ -1,29 +1,37 @@
 {
   "mcpServers": {
-    "context7": {
-      "url": "https://mcp.context7.com/mcp",
-      "headers": {
-        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
-      },
-      "lifecycle": "eager"
+    "executor": {
+      "url": "https://executor.sh/jonnie/mcp"
     },
-    "grep_app": {
-      "url": "https://mcp.grep.app",
-      "lifecycle": "eager"
+    "github-code-search": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_TOOLS=search_code",
+        "-e",
+        "GITHUB_READ_ONLY=1",
+        "ghcr.io/github/github-mcp-server:v1.12.2"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "!gh auth token"
+      }
+    },
+    "cf-portal": {
+      "url": "https://portal.mcp.cfdata.org/mcp?codemode=search_and_execute"
     },
     "agentation": {
       "command": "npx",
-      "args": [
-        "-y",
-        "agentation-mcp",
-        "server"
-      ],
-      "lifecycle": "lazy"
+      "args": ["-y", "agentation-mcp", "server"]
     },
-    "cf-portal": {
-      "url": "https://portal.mcp.cfdata.org/mcp",
-      "auth": "oauth",
-      "lifecycle": "lazy"
+    "computer": {
+      "command": "open-computer-use",
+      "args": ["mcp"],
+      "timeout": 60
     }
   }
 }

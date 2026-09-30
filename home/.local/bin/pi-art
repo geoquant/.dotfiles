@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Launch an isolated personal Pi profile for Claude Opus 5.5 art work."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+ACCOUNT_ID = "64f8d465c4a3727bbd3af3fb51def118"
+GATEWAY_ID = "personal-art-opus"
+KEYCHAIN_SERVICE = "pi-cloudflare-art"
+MODEL = "claude-opus-5-5"
+PROVIDER = "cloudflare-ai-gateway"
+
+# These options can escape the profile's model, credential, trust, or session
+# boundaries. All other ordinary Pi flags remain available.
+BLOCKED_OPTIONS = {
+    "--api-key",
+    "--approve",
+    "--export",
+    "--fork",
+    "--model",
+    "--models",
+    "--provider",
+    "--session",
+    "--session-dir",
+    "-a",
+}
+
+
+def validate_arguments(arguments: list[str]) -> None:
+    """Reject flags that would bypass this launcher's isolation boundary."""
+    for argument in arguments:
+        if argument == "--":
+            return
+        option = argument.split("=", 1)[0]
+        if option in BLOCKED_OPTIONS:
+            print(
+                f"pi-art: {option} is disabled to keep the art profile isolated.",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+
+
+def main() -> None:
+    home = Path.home()
+    agent_dir = home / ".pi" / "art-agent"
+    validate_arguments(sys.argv[1:])
+
+    try:
+        token = subprocess.run(
+            [
+                "/usr/bin/security",
+                "find-generic-password",
+                "-a",
+                os.environ.get("USER", home.name),
+                "-s",
+                KEYCHAIN_SERVICE,
+                "-w",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.rstrip("\n")
+    except subprocess.CalledProcessError:
+        print(
+            f"pi-art: Cloudflare token not found in macOS Keychain service {KEYCHAIN_SERVICE!r}.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    # Build a clean environment instead of inheriting company-provider credentials.
+    clean_env: dict[str, str] = {}
+    for key in (
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "PATH",
+        "SHELL",
+        "TERM",
+        "TERM_PROGRAM",
+        "TERM_PROGRAM_VERSION",
+        "COLORTERM",
+        "LANG",
+        "TMPDIR",
+        "NODE_EXTRA_CA_CERTS",
+        "SSL_CERT_FILE",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_DATA_HOME",
+    ):
+        if value := os.environ.get(key):
+            clean_env[key] = value
+    for key, value in os.environ.items():
+        if key.startswith("LC_"):
+            clean_env[key] = value
+
+    clean_env.update(
+        {
+            "PI_CODING_AGENT_DIR": str(agent_dir),
+            "PI_CODING_AGENT_SESSION_DIR": str(agent_dir / "sessions"),
+            "CLOUDFLARE_API_KEY": token,
+            "CLOUDFLARE_ACCOUNT_ID": ACCOUNT_ID,
+            "CLOUDFLARE_GATEWAY_ID": GATEWAY_ID,
+        }
+    )
+
+    pi = shutil.which("pi", path=clean_env.get("PATH"))
+    if not pi:
+        print("pi-art: could not find the pi executable on PATH.", file=sys.stderr)
+        raise SystemExit(1)
+
+    argv = [
+        pi,
+        "--provider",
+        PROVIDER,
+        "--model",
+        MODEL,
+        "--models",
+        f"{PROVIDER}/{MODEL}",
+        "--no-context-files",
+        *sys.argv[1:],
+    ]
+    os.execve(pi, argv, clean_env)
+
+
+if __name__ == "__main__":
+    main()

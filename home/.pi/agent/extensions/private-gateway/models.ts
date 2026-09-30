@@ -1,5 +1,5 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
-import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
+import { getModels as getBuiltinModels } from "@earendil-works/pi-ai/compat";
 import { type Backend } from "./constants.ts";
 import {
 	type GatewayConfig,

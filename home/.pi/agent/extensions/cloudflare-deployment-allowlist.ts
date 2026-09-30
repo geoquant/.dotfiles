@@ -1966,10 +1966,22 @@ export function findsCloudflarePolicyMutation(command: string, cwd: string): boo
 			operands.some((value) => value.startsWith("of=") && isPolicyPath(value))
 		)
 			return true;
+		// Herdr agent prompt has one message operand, not a file or shell program.
+		// Exclude only that position; options, redirections, other Herdr commands,
+		// and subsequent shell segments still pass through the policy guard.
+		const policyOperands =
+			commandName === "herdr" &&
+			operands[0] === "agent" &&
+			operands[1] === "prompt" &&
+			/^[A-Za-z0-9][A-Za-z0-9:_-]*$/.test(operands[2] ?? "") &&
+			operands[3] !== undefined &&
+			!operands[3].startsWith("-")
+				? operands.filter((_value, index) => index !== 3)
+				: operands;
 		if (
 			!POLICY_READ_ONLY_COMMANDS.has(commandName) &&
 			commandName !== "cp" &&
-			operands.some((value) => isPolicyPath(value) || value.includes(POLICY_FILE_NAME))
+			policyOperands.some((value) => isPolicyPath(value) || value.includes(POLICY_FILE_NAME))
 		)
 			return true;
 	}
