@@ -1,0 +1,12 @@
+# Personal Pi stack. Upstream sources, not similarly named npm packages.
+npm:pi-subagents
+npm:pi-extmgr
+npm:@plannotator/pi-extension
+https://github.com/davebcn87/pi-autoresearch
+npm:pi-codex-goal
+git:github.com/joelhooks/pi-ast-grep@main
+npm:@upstash/context7-pi
+git:github.com/nicobailon/pi-intercom
+git:github.com/joelhooks/pi-until
+git:github.com/joelhooks/pi-bellwether
+git:github.com/joelhooks/pi-muster

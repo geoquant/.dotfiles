@@ -40,6 +40,8 @@ home/.config/herdr/release-notes.json
 home/.config/herdr/plugins.json
 home/.config/herdr/plugins/
 home/.config/herdr/.plugins.lock
+home/.config/herdr/*sock*
+home/.config/herdr/session-snapshots/
 
 # jj per-repo configs
 home/.config/jj/repos/
@@ -110,3 +112,4 @@ home/.agents/skills/ui-prototype
 
 # Personal skill stored in skills-private; restore its local link on bootstrap.
 home/.agents/skills/product-description
+home/.agents/skills/tldraw-offline

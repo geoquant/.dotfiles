@@ -26,6 +26,12 @@ npm workspace for pi agent extensions. TypeScript, ESM-only.
 
 Skills live in `home/.agents/skills/` and stow to `~/.agents/skills/`. Do not copy them here.
 
+For agent-stack installs, package updates, memory, or Muster configuration, read
+[`TOOLING.md`](../../TOOLING.md). Package sources are tracked in
+`home/.config/agent-tooling/pi-packages.txt`; live settings, model rosters, and
+memory remain private. Merge them through `agent-tooling sync`, not by copying
+machine-local settings into Git.
+
 ## WHERE TO LOOK
 
 | Task | Location |

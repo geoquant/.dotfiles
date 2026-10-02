@@ -397,13 +397,15 @@ __install_pi() {
     if __command_exists pi; then
         __print_success "pi is already installed"
         __ensure_pi_visual_settings || return 1
+        "${HOME_DIR}/.local/bin/agent-tooling" sync || return 1
         return 0
     fi
 
     __print_info "Installing pi..."
-    if vp install -g @mariozechner/pi-coding-agent; then
+    if npm install -g --ignore-scripts @earendil-works/pi-coding-agent; then
         __print_success "pi installed successfully"
         __ensure_pi_visual_settings || return 1
+        "${HOME_DIR}/.local/bin/agent-tooling" sync || return 1
     else
         __print_error "Failed to install pi"
         return 1
@@ -425,6 +427,8 @@ __install_packages() {
     # Homebrew 6 requires explicit trust before loading third-party tap formulae.
     if brew help trust >/dev/null 2>&1; then
         brew trust plannotator/tap >/dev/null
+        brew tap poteto/tap
+        brew trust --formula poteto/tap/noodle >/dev/null
     fi
 
     if brew bundle --file="${PACKAGES_DIR}/bundle"; then
@@ -902,6 +906,7 @@ cmd_update() {
     # Update pi and its configured packages.
     if __command_exists pi; then
         __ensure_pi_visual_settings || return 1
+        "${HOME_DIR}/.local/bin/agent-tooling" sync || return 1
         __print_info "Updating pi and configured packages..."
         if (cd "$DOTFILES_DIR" && pi update --all); then
             __print_success "pi and configured packages updated"

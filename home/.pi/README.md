@@ -6,8 +6,10 @@ Global pi config, synced via dotfiles and stowed into `~/.pi`.
 renderer is enabled with `markdown.mermaid: "streaming"`, skill commands are
 enabled, and the `/show-me` compatibility alias is available. The settings
 file stays machine-local because it contains provider and package preferences;
-the dotfiles bootstrap only adds these display/tooling settings without
-overwriting the rest of the file. Pi renders diagrams as Unicode terminal art,
+the dotfiles bootstrap adds these display/tooling settings and reconciles the
+portable package manifest without overwriting provider/model preferences.
+See [the personal tooling stack](../../TOOLING.md) for sources, updates, skill
+forks, memory, Muster portability, and verification limits. Pi renders diagrams as Unicode terminal art,
 so very wide diagrams may still need a wider terminal or shorter labels.
 
 ## Extension dependency workspace

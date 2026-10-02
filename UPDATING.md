@@ -86,6 +86,14 @@ Check effective settings inside each repository with
 `git config --show-origin --get user.email` and
 `git config --show-origin --get user.signingkey`.
 
+## Agent tooling stack
+
+See [TOOLING.md](TOOLING.md) for the Pi/Herdr/Until/Bellwether/Muster stack,
+rat-stack bootstrap, and Matt Pocock/Lauren Tan skill forks. `agent-tooling sync`
+reconciles package sources while preserving private live settings. `dot update`
+upgrades the binaries and packages. Existing Herdr servers need a deliberate safe
+restart; installing tools never starts agent factories or recurring work.
+
 ## Day-to-day: sync my own machines
 
 ```fish

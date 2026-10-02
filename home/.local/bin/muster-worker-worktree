@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Allocate private Git clones for Muster; remove only clean, harvested owned clones."""
+import argparse
+import json
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import uuid
+
+ROOT = pathlib.Path.home() / '.local/state/muster/clones'
+
+
+def git(cwd, *args, check=True):
+    return subprocess.run(['git', '-C', str(cwd), *args], check=check,
+                          capture_output=True, text=True)
+
+
+def create_clone(source, slug, base):
+    source = pathlib.Path(git(source, 'rev-parse', '--show-toplevel').stdout.strip()).resolve()
+    if not re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,63}', slug):
+        raise ValueError('Worker slug must contain only lowercase letters, digits, underscores or hyphens')
+    ref = base or 'HEAD'
+    sha = git(source, 'rev-parse', '--verify', '--end-of-options', f'{ref}^{{commit}}').stdout.strip()
+    ROOT.mkdir(parents=True, exist_ok=True)
+    clone = ROOT / f'{slug}-{uuid.uuid4().hex[:12]}'
+    branch = f'worker/{clone.name}'
+    subprocess.run(['git', 'clone', '--quiet', '--no-hardlinks', '--', str(source), str(clone)], check=True)
+    git(clone, 'checkout', '--quiet', '-b', branch, sha)
+    (clone / '.git/muster-owner.json').write_text(json.dumps({
+        'source': str(source), 'branch': branch, 'base': sha
+    }) + '\n')
+    print(f'worktree: {clone}\nbranch: {branch}\nbase: {ref} {sha}')
+
+
+def remove_clone(target, force):
+    target = pathlib.Path(target)
+    if target.is_symlink():
+        raise ValueError('Refusing to remove a symlink')
+    target = target.resolve()
+    if target.parent != ROOT.resolve():
+        raise ValueError('Refusing to remove a path outside the owned Muster clone root')
+    marker = target / '.git/muster-owner.json'
+    owner = json.loads(marker.read_text())
+    if git(target, 'symbolic-ref', '--short', 'HEAD').stdout.strip() != owner['branch']:
+        raise ValueError('Refusing to remove a clone on an unexpected branch')
+    if not force:
+        if git(target, 'status', '--porcelain', '--untracked-files=all', '--ignored').stdout.strip():
+            raise ValueError('Refusing to remove uncommitted or untracked work; harvest and verify it first')
+        head = git(target, 'rev-parse', 'HEAD').stdout.strip()
+        if head != owner['base']:
+            source = pathlib.Path(owner['source'])
+            present = git(source, 'cat-file', '-e', f'{head}^{{commit}}', check=False).returncode == 0
+            reachable = git(source, 'for-each-ref', '--contains', head, '--format=%(refname)', check=False)
+            if not present or reachable.returncode != 0 or not reachable.stdout.strip():
+                raise ValueError('Refusing to remove unharvested commits; packet_land must fetch them first')
+    shutil.rmtree(target)
+    print(f'removed: {target}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='command', required=True)
+    create = commands.add_parser('create')
+    create.add_argument('source')
+    create.add_argument('slug')
+    create.add_argument('--base')
+    remove = commands.add_parser('remove')
+    remove.add_argument('--force', action='store_true', help='Discard verified clone work; caller must obtain approval')
+    remove.add_argument('target')
+    args = parser.parse_args()
+    try:
+        if args.command == 'create':
+            create_clone(args.source, args.slug, args.base)
+        else:
+            remove_clone(args.target, args.force)
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        print(f'Muster clone refused: {error}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

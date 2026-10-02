@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "ask-matt",
+      "source": "mattpocock/skills/skills/engineering/ask-matt",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "code-review",
+      "source": "mattpocock/skills/skills/engineering/code-review",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "codebase-design",
+      "source": "mattpocock/skills/skills/engineering/codebase-design",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "diagnosing-bugs",
+      "source": "mattpocock/skills/skills/engineering/diagnosing-bugs",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "domain-modeling",
+      "source": "mattpocock/skills/skills/engineering/domain-modeling",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "grill-with-docs",
+      "source": "mattpocock/skills/skills/engineering/grill-with-docs",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "implement",
+      "source": "mattpocock/skills/skills/engineering/implement",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "implement-spec",
+      "source": "mattpocock/skills/skills/engineering/implement-spec",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "source": "mattpocock/skills/skills/engineering/improve-codebase-architecture",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "matt-pr",
+      "source": "mattpocock/skills/skills/engineering/pr",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "prototype",
+      "source": "mattpocock/skills/skills/engineering/prototype",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "research",
+      "source": "mattpocock/skills/skills/engineering/research",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "retro",
+      "source": "mattpocock/skills/skills/engineering/retro",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "setup-matt-pocock-skills",
+      "source": "mattpocock/skills/skills/engineering/setup-matt-pocock-skills",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "tdd",
+      "source": "mattpocock/skills/skills/engineering/tdd",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "to-spec",
+      "source": "mattpocock/skills/skills/engineering/to-spec",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "to-tickets",
+      "source": "mattpocock/skills/skills/engineering/to-tickets",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "triage",
+      "source": "mattpocock/skills/skills/engineering/triage",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "wayfinder",
+      "source": "mattpocock/skills/skills/engineering/wayfinder",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "wizard",
+      "source": "mattpocock/skills/skills/engineering/wizard",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "grill-me",
+      "source": "mattpocock/skills/skills/productivity/grill-me",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "grilling",
+      "source": "mattpocock/skills/skills/productivity/grilling",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "handoff",
+      "source": "mattpocock/skills/skills/productivity/handoff",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "teach",
+      "source": "mattpocock/skills/skills/productivity/teach",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "merged-upstream-with-local-guards"
+    },
+    {
+      "name": "to-questionnaire",
+      "source": "mattpocock/skills/skills/productivity/to-questionnaire",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "wait-what",
+      "source": "mattpocock/skills/skills/productivity/wait-what",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "upstream"
+    },
+    {
+      "name": "writing-for-agents",
+      "source": "mattpocock/skills/skills/productivity/writing-for-agents",
+      "revision": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+      "mode": "preserved-fork"
+    },
+    {
+      "name": "brain",
+      "source": "poteto/brainmaxxing/.agents/skills/brain",
+      "revision": "ec4d8e43dee639d6f5d94aed3ca16af7b298ecfc",
+      "mode": "pi-fork"
+    },
+    {
+      "name": "reflect",
+      "source": "poteto/brainmaxxing/.agents/skills/reflect",
+      "revision": "ec4d8e43dee639d6f5d94aed3ca16af7b298ecfc",
+      "mode": "pi-fork"
+    },
+    {
+      "name": "meditate",
+      "source": "poteto/brainmaxxing/.agents/skills/meditate",
+      "revision": "ec4d8e43dee639d6f5d94aed3ca16af7b298ecfc",
+      "mode": "pi-fork"
+    },
+    {
+      "name": "ruminate",
+      "source": "poteto/brainmaxxing/.agents/skills/ruminate",
+      "revision": "ec4d8e43dee639d6f5d94aed3ca16af7b298ecfc",
+      "mode": "pi-fork"
+    },
+    {
+      "name": "plan",
+      "source": "poteto/brainmaxxing/.agents/skills/plan",
+      "revision": "ec4d8e43dee639d6f5d94aed3ca16af7b298ecfc",
+      "mode": "pi-fork"
+    },
+    {
+      "name": "lauren-review",
+      "source": "poteto/brainmaxxing/.agents/skills/review",
+      "revision": "ec4d8e43dee639d6f5d94aed3ca16af7b298ecfc",
+      "mode": "pi-fork"
+    },
+    {
+      "name": "noodle",
+      "source": "poteto/noodle/.agents/skills/noodle",
+      "revision": "82d2921c52370f23f29086de81ccfb600939c037",
+      "mode": "upstream"
+    },
+    {
+      "name": "how",
+      "source": "poteto/how/skills/how",
+      "revision": "b1ef42969ea7a2bb50aa26c2480274828a0385e7",
+      "mode": "upstream"
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# Reconcile the personal agent stack without tracking credentials or live settings.
+set -euo pipefail
+
+config="${HOME}/.config/agent-tooling"
+sources="${HOME}/.local/share/agent-tooling/sources"
+
+clone_source() {
+    local repo="$1" target="$sources/${1//\//--}"
+    if [[ -d "$target/.git" ]]; then
+        [[ "$(git -C "$target" remote get-url origin)" == "https://github.com/$repo.git" ]] || {
+            echo "Unexpected source remote: $target" >&2; return 1;
+        }
+        [[ -z "$(git -C "$target" status --porcelain)" ]] || {
+            echo "Preserving dirty source checkout: $target" >&2; return 1;
+        }
+        git -C "$target" pull --ff-only
+    elif [[ -e "$target" ]]; then
+        echo "Refusing to replace existing path: $target" >&2; return 1
+    else
+        git clone "https://github.com/$repo.git" "$target"
+    fi
+}
+
+configure_muster() {
+    # Role models stay machine-local, including private gateway overlays.
+    python3 - <<'PY'
+import json, os, pathlib, tempfile
+home = pathlib.Path.home()
+settings = json.loads((home / '.pi/agent/settings.json').read_text())
+provider, model = settings.get('defaultProvider'), settings.get('defaultModel')
+roster = home / '.config/muster/roster.json'
+if roster.exists() or not provider or not model:
+    raise SystemExit(0)
+roster.parent.mkdir(parents=True, exist_ok=True)
+value = {'version': 1, 'roles': {role: {'model': f'{provider}/{model}',
+    'thinking': 'medium' if role == 'worker' else 'high', 'compactAt': 150000}
+    for role in ['desk', 'hawk', 'boss', 'worker', 'judge']}}
+fd, temporary = tempfile.mkstemp(dir=roster.parent)
+try:
+    with os.fdopen(fd, 'w') as output:
+        json.dump(value, output, indent=2)
+        output.write('\n')
+    # Never overwrite a roster created by another process.
+    os.link(temporary, roster)
+finally:
+    os.unlink(temporary)
+PY
+}
+
+case "${1:-help}" in
+    sync)
+        [[ $# == 1 ]] || { echo 'Usage: agent-tooling sync' >&2; exit 2; }
+        if command -v fnm >/dev/null && [[ "$(node --version)" != v24.18.0 ]]; then
+            fnm exec --using 24.18.0 node --version >/dev/null || fnm install 24.18.0
+            fnm exec --using 24.18.0 pi --version >/dev/null 2>&1 || fnm exec --using 24.18.0 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+            exec fnm exec --using 24.18.0 "$0" "$@"
+        fi
+        command -v pi >/dev/null || npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+        # Remove only the old upstream Herdr adapter; Bellwether owns this surface.
+        if pi list | grep -q '^  git:github.com/dmmulroy/pi-herdr$'; then
+            pi remove git:github.com/dmmulroy/pi-herdr
+        fi
+        installed=$(pi list)
+        while IFS= read -r source; do
+            [[ -z "$source" || "$source" == \#* ]] && continue
+            if ! grep -Fqx "  $source" <<< "$installed"; then pi install "$source"; fi
+        done < "$config/pi-packages.txt"
+        mkdir -p "$sources"
+        for repo in joelhooks/rat-stack mattpocock/skills poteto/brainmaxxing poteto/noodle poteto/how poteto/verification-skill-example; do
+            clone_source "$repo"
+        done
+        configure_muster
+        echo 'Sources refreshed. Vendored skill forks are preserved; review upstream diffs before merging.'
+        ;;
+    rat-check)
+        [[ $# == 1 ]] || { echo 'Usage: agent-tooling rat-check' >&2; exit 2; }
+        command -v fnm >/dev/null
+        fnm exec --using 24.18.0 node --version >/dev/null || fnm install 24.18.0
+        # Run npm outside rat-stack: its devEngines rejects npm inside the project.
+        (cd "$sources" && fnm exec --using 24.18.0 npm install --prefix "$HOME/.local/share/agent-tooling/pnpm" --ignore-scripts pnpm@11.3.0)
+        export PATH="$HOME/.local/share/agent-tooling/pnpm/node_modules/.bin:$PATH"
+        cd "$sources/joelhooks--rat-stack"
+        fnm exec --using 24.18.0 pnpm install --frozen-lockfile
+        fnm exec --using 24.18.0 pnpm turbo run build --filter=@rat-stack/core...
+        fnm exec --using 24.18.0 pnpm sources:fetch
+        fnm exec --using 24.18.0 pnpm turbo run check test build --concurrency=4
+        ;;
+    brain-init)
+        [[ $# == 1 ]] || { echo 'Usage: agent-tooling brain-init (in the project)' >&2; exit 2; }
+        [[ ! -e brain ]] || { echo 'Preserving existing brain/ vault' >&2; exit 1; }
+        cp -R "$HOME/.local/share/agent-tooling/brain-template" brain
+        echo 'Created project-local brain/. Review the starter principles before adopting them.'
+        ;;
+    doctor)
+        [[ $# == 1 ]] || { echo 'Usage: agent-tooling doctor' >&2; exit 2; }
+        pi --version
+        herdr status
+        noodle --version
+        pi list
+        while IFS= read -r source; do
+            [[ -z "$source" || "$source" == \#* ]] && continue
+            pi list | grep -Fqx "  $source" || { echo "Missing Pi package: $source" >&2; exit 1; }
+        done < "$config/pi-packages.txt"
+        for repo in joelhooks/rat-stack mattpocock/skills poteto/brainmaxxing poteto/noodle poteto/how poteto/verification-skill-example; do
+            git -C "$sources/${repo//\//--}" log -1 --format="$repo: %h %cs"
+        done
+        [[ -f "$HOME/.config/muster/roster.json" ]] || { echo 'Muster roster missing: run agent-tooling sync after choosing a Pi model.' >&2; exit 1; }
+        echo 'Muster: clone workers use muster-worker-worktree; desk queues use built-in Muster tools.'
+        echo 'Existing Herdr sessions are never restarted automatically; check restart_needed above.'
+        ;;
+    help|--help|-h)
+        printf '%s\n' 'Usage: agent-tooling sync | doctor | brain-init | rat-check' '' \
+            'sync: reconcile Pi packages, refresh reference sources, seed a private Muster roster.' \
+            'doctor: inspect installed tools, source revisions, and Herdr restart requirements.' \
+            'brain-init: create the optional Brainmaxxing vault in the current project.' \
+            'rat-check: bootstrap rat-stack with scoped Node/pnpm and run its fence.' \
+            'Use dot update to upgrade Pi and Homebrew tools, then reconcile this stack.'
+        ;;
+    *) echo "Unknown agent-tooling command: $1" >&2; exit 2 ;;
+esac

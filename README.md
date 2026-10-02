@@ -364,7 +364,7 @@ dot stow
 ```bash
 # Ensure Vite+ is installed, then install pi from the tool registry
 curl -fsSL https://vite.plus | bash
-vp install -g @mariozechner/pi-coding-agent
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
 ### Getting Help
