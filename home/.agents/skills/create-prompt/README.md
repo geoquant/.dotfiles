@@ -1,8 +1,9 @@
 # Create prompt
 
-A global prompt-writing skill distilled from *The Art of Proper Speech — Volume
-VI: The Prompt Architect*. Creates copy-ready prompts for LLMs, tool-using agents,
-and human collaborators without executing the resulting task.
+A global prompt-writing skill containing the **complete** *The Art of Proper
+Speech — Volume VI: The Prompt Architect*, recovered from the user's DOCX.
+Creates copy-ready prompts for LLMs, tool-using agents, and human collaborators
+without executing the resulting task.
 
 ## Pi usage
 
@@ -19,8 +20,12 @@ assumptions. It can also be discovered automatically for prompt-writing requests
 
 Pi exposes skills as `/skill:name`. The exact `/create-prompt` command is a thin
 prompt template at `home/.pi/agent/prompts/create-prompt.md` that loads the same
-skill. The workflow lives only in `SKILL.md`; detailed technique selection lives
-in `references/techniques.md`.
+skill. `SKILL.md` contains the operating workflow **and the full source volume**:
+all 19 chapters, four tables, examples, research claims, templates, and linked
+references. The skill requires reading the entire volume, continuing with offsets
+if a tool truncates the file. [SOURCE.md](SOURCE.md) records provenance and the
+content-preservation audit. The former abridged technique reference was removed
+so it cannot replace the complete guide.
 
 ## Install and sync
 
@@ -41,8 +46,9 @@ The normal `dot update` workflow also pulls and restows. On a new machine, use
 the repository's `dot init` workflow. In an already-running Pi session, run
 `/reload`; new sessions discover both resources globally, regardless of project.
 
-There are no additional packages, API keys, or executable dependencies. The
-long-form source essay is not bundled; its incomplete citations, historical
-model examples, and numerical performance claims are not treated as verified
-facts. The skill preserves its practical principles while using explicit
-uncertainty, authority boundaries, and observable completion checks.
+There are no additional packages, API keys, or executable dependencies. All
+source text is bundled directly in `SKILL.md`; the original DOCX is not required
+on other machines. The guide's wording, historical model examples, numerical
+claims, and references are preserved rather than silently edited. Separate
+application notes distinguish preservation from independent fact-checking and
+respect the receiver's real capabilities and authority boundaries.
