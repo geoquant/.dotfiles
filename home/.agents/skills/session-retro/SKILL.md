@@ -1,5 +1,5 @@
 ---
-name: retro
+name: session-retro
 description: "Conduct a retrospective on a coding session."
 disable-model-invocation: true
 ---
