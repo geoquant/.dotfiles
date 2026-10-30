@@ -15,6 +15,56 @@ settings, models, credentials, memory and Muster state remain machine-local.
 | Matt Pocock | Engineering + productivity skills; current source revision and fork mode in `skill-sources.json` |
 | Lauren Tan | Brainmaxxing memory loop, Noodle CLI skill, How, behavior-verification fork |
 
+## Local Jira tool
+
+The global `jira` Pi tool wraps the installed authenticated CLI at
+`~/.local/bin/jira` (fallback `~/dev/me/jira/jira`). It loads from
+`home/.pi/agent/extensions/jira.ts` for every normal Pi session, including agents
+launched outside Stratus. Existing sessions need `/reload`; sessions launched
+with extensions disabled cannot load it.
+
+Use `jira` first for ticket inspection, boards, creation, assignment and status
+transitions. Authentication belongs to the CLI; a separate REST or MCP probe does
+not establish that the local CLI is unavailable. Tool output redacts Access tokens,
+passes arguments without a shell, and does not retry mutations automatically.
+
+Verify the tool and standard global discovery with:
+`cd home/.pi && node --import tsx --test agent/extensions/tests/jira.test.ts`.
+
+## GitHub search through OrbStack
+
+The user-level Pi MCP configuration in `home/.pi/agent/mcp.json` runs the pinned
+GitHub MCP image through OrbStack's Docker context. It exposes only `search_code`
+and `search_repositories`, with `GITHUB_READ_ONLY=1`. Credentials are resolved by
+the existing command in the MCP configuration, not copied into container images.
+
+Containers are session-owned stdio servers launched with `docker run -i --rm`.
+They start when Pi connects and disappear on disconnect; an empty OrbStack
+container list between sessions is normal. Keep OrbStack running and the
+`orbstack` Docker context selected. No persistent container or published port is
+required. Verify discovery with `pi mcp list`; its overall exit status may also
+reflect unrelated servers that need authentication. Existing Pi sessions need an
+MCP reconnect or `/reload` to pick up changes, at a safe checkpoint rather than
+while a goal is working.
+
+## Global goal safety
+
+`home/.pi/agent/extensions/goal-safety/` loads in every normal personal Pi
+session. It silently discards paused/stale goal continuations, stops automatic
+no-progress loops, and reserves a conservative USD 100 per-goal budget across
+sessions and restarts. Terminal stops abort the task; they never mark it complete.
+Already-running sessions require `/reload` or restart. Disabled extensions bypass
+this local policy and are not a supported way to run budgeted tasks.
+
+Unknown pricing and unmetered delegated/model-powered tools fail closed. The
+current allowlist also blocks codemode and external tools without budget adapters;
+this intentionally trades functionality for safety. Arbitrary shell programs and
+incorrect provider billing cannot be secured by a local extension alone. A
+billing-side quota or mandatory gateway is required for an unconditional financial
+guarantee. See `home/.pi/agent/extensions/goal-safety/README.md` for the exact
+coverage, persistent ledger, and validation command. Do not erase a stopped goal's
+ledger to resume the same task.
+
 ## Bootstrap and update
 
 ```sh
@@ -110,6 +160,40 @@ unchanged. If fnm downloads fail behind a corporate CA, fix its trust setup or
 install a checksum-verified official binary; never disable TLS verification.
 Create a new template repository only after agreeing its name and visibility.
 Do not globally load rat-stack's project extension or deploy its infrastructure.
+
+## Dillon upstream sync (2026-10-29)
+
+Merged `dmmulroy/.dotfiles` through `56e9c3f`, retaining personal skills,
+Git identity, Cloudflare integrations, Jira, goal safety, MCP configuration,
+and the existing agent-tooling bootstrap.
+
+- Fish now caches Starship initialization and guards direnv startup.
+- Neovim uses smart-splits v3 with Herdr and Rex backends; the old custom
+  Herdr navigation module is removed.
+- Herdr Code Mode is installed alongside Bellwether/Muster. Its deferred
+  SDK-operation tools have distinct names; use the existing bounded
+  Bellwether tools for ordinary pane/agent work. `PI_HERDR_CODEMODE=0` disables
+  the additional surface. Existing Pi sessions are not reloaded automatically.
+- Private gateway supports Workers AI classifiers. Workspace Pi dependencies
+  now require 1.4.0, matching the installed runtime; the transport implements
+  its compatibility contract and Clef Omni uses current built-in metadata.
+- Skill discovery deduplicates real paths. Deployment guard changes retain
+  local policy and add upstream redirection/workspace handling.
+- Rex and Tinycast configuration is available, but neither app was installed
+  or launched by this sync. Raycast remains in the Brewfile. `dot update`
+  inherits upstream Rex installation/update behavior; inspect that workflow
+  before running a broad update if you do not want Rex installed.
+- Node runtime preinstallation retains the existing default rather than
+  selecting Vite+ LTS globally. FNM/project runtime configuration is preserved.
+
+Validation: 134 extension tests, six extension typechecks, six agent-tooling
+behavior tests, the xAI catalog regression, Fish syntax, Bash syntax, and
+agent-tooling ShellCheck passed. Stow and Neovim plugin synchronization ran
+locally. Tests use fixture servers; no live classifier request, deployment,
+Herdr restart, or GUI application switch was performed.
+
+The following older verification snapshot is historical, not current version
+or security-audit evidence.
 
 ## Verification and known limits (2026-10-02)
 

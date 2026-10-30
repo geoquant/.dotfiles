@@ -139,6 +139,7 @@ type PackageTask = {
 	readonly taskName: string;
 	readonly filter: string | undefined;
 	readonly packageCwd: string;
+	readonly forwardedArgs: readonly string[];
 };
 
 type ScriptResolutionContext = {
@@ -470,6 +471,15 @@ function parsePackageTask(
 		return { _tag: "ok", value: undefined };
 	}
 	const args = assignment.rest.slice(1);
+	if (
+		executable === "pnpm" &&
+		args[0] === "install" &&
+		args.length === 3 &&
+		args.includes("--frozen-lockfile") &&
+		args.includes("--ignore-scripts")
+	) {
+		return { _tag: "ok", value: undefined };
+	}
 	if (["exec", "dlx", "x", "wrangler", "cf", "alchemy"].includes(args[0] ?? ""))
 		return { _tag: "ok", value: undefined };
 	const requiresRunWord = executable === "npm" || executable === "bun";
@@ -479,8 +489,13 @@ function parsePackageTask(
 	const filterValues: string[] = [];
 	const cwdValues: string[] = [];
 	let taskName: string | undefined;
+	let forwardedArgs: readonly string[] = [];
 	for (let index = 0; index < args.length; index += 1) {
 		const argument = args[index];
+		if (taskName !== undefined) {
+			forwardedArgs = args.slice(argument === "--" ? index + 1 : index);
+			break;
+		}
 		if (argument === undefined || argument === "run" || argument === "run-script") continue;
 		if (argument === "--") {
 			if (args[index + 1] !== undefined)
@@ -520,8 +535,6 @@ function parsePackageTask(
 			return blocked(
 				`script resolution does not support package-runner option ${JSON.stringify(argument)}.`,
 			);
-		if (taskName !== undefined)
-			return blocked("script resolution found multiple task names or appended task arguments.");
 		taskName = argument;
 	}
 	if (taskName === undefined) return { _tag: "ok", value: undefined };
@@ -552,8 +565,30 @@ function parsePackageTask(
 			taskName: viteTaskSelector?.[1] ?? taskName,
 			filter,
 			packageCwd: resolve(cwd, cwdValues[0] ?? "."),
+			forwardedArgs,
 		},
 	};
+}
+
+// Deliberately not a general forwarding rule: only local Vitest file selection
+// and a positive worker count are understood. Config, environment, execution-mode
+// and deployment-script overrides retain the fail-closed behavior.
+function supportsFocusedVitestArguments(command: string, args: readonly string[]): boolean {
+	if (command.trim() !== "vitest run --config vitest.config.ts") return false;
+	for (let index = 0; index < args.length; index += 1) {
+		const argument = args[index];
+		if (argument === undefined) return false;
+		if (/^--maxWorkers=[1-9][0-9]*$/.test(argument)) continue;
+		if (argument === "--maxWorkers") {
+			if (!/^[1-9][0-9]*$/.test(args[index + 1] ?? "")) return false;
+			index += 1;
+			continue;
+		}
+		if (!/^(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_.-]+\.(?:test|spec)\.[cm]?[jt]sx?$/.test(argument))
+			return false;
+		if (argument.split("/").some(part => part === "." || part === "..")) return false;
+	}
+	return true;
 }
 
 function fileFingerprint(path: string): string {
@@ -1703,7 +1738,9 @@ function evaluateCloudflareDeploymentCommandWithCache(
 
 	const tokenized = tokenizeShell(command);
 	if (tokenized._tag === "err") {
-		return mentionsCloudflareDeployment(command) || /\b(?:deploy|destroy)\b/i.test(command)
+		return mentionsCloudflareDeployment(command) ||
+			/\b(?:deploy|destroy)\b/i.test(command) ||
+			/\b(?:pnpm|npm|yarn|bun|vp|vpr)\b/.test(command)
 			? { _tag: "block", reason: tokenized.error.message }
 			: { _tag: "unrelated" };
 	}
@@ -1783,7 +1820,10 @@ function evaluateCloudflareDeploymentCommandWithCache(
 			if (packageTaskCommand._tag === "err")
 				return { _tag: "block", reason: packageTaskCommand.error.message };
 			if (packageTaskCommand.value === undefined) {
-				if (/deploy|destroy/i.test(packageTask.value.taskName)) {
+				if (
+					packageTask.value.forwardedArgs.length > 0 ||
+					/deploy|destroy/i.test(packageTask.value.taskName)
+				) {
 					return {
 						_tag: "block",
 						reason: new CloudflareDeploymentBlocked(
@@ -1792,6 +1832,20 @@ function evaluateCloudflareDeploymentCommandWithCache(
 					};
 				}
 				continue;
+			}
+			if (
+				packageTask.value.forwardedArgs.length > 0 &&
+				!supportsFocusedVitestArguments(
+					packageTaskCommand.value.command,
+					packageTask.value.forwardedArgs,
+				)
+			) {
+				return {
+					_tag: "block",
+					reason: new CloudflareDeploymentBlocked(
+						"script resolution only supports forwarded test-file paths and --maxWorkers for the static Vitest run script.",
+					).message,
+				};
 			}
 			if (resolution.depth >= MAX_PACKAGE_SCRIPT_DEPTH) {
 				return {

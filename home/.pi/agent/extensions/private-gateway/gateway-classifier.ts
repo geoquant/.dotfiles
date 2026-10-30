@@ -29,7 +29,6 @@ export interface GatewayClassifierOverlay {
  */
 export const GATEWAY_WORKERS_AI_CLASSIFIER_OVERLAY: Readonly<Record<string, GatewayClassifierOverlay>> = {
 	"@cf/cloudflare/clef-flash": { name: "Clef Flash", contextWindow: 24_000, inputCostPerMillion: 0.038 },
-	"@cf/cloudflare/clef-omni": { name: "Clef Omni", contextWindow: 64_000, inputCostPerMillion: 0.15 },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -65,6 +64,10 @@ export function gatewayWorkersAiRunOutput(body: unknown): Record<string, unknown
 export const GATEWAY_WORKERS_AI_RUN_TRANSPORT: SystemOneTransport = {
 	api: GATEWAY_WORKERS_AI_CLASSIFIER_API,
 	label: LABEL,
+	detectCompat: (model) => ({
+		imageInput: model.id.startsWith("@cf/cloudflare/clef") ? "images" : "assets",
+		sendImageOptInHeader: false,
+	}),
 	url: (model: ClassifierModel<ClassifierApi>) => new URL(`run/${model.id}`, `${model.baseUrl.replace(/\/+$/u, "")}/`),
 	payload: (_model, request) => request,
 	output: gatewayWorkersAiRunOutput,

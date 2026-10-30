@@ -178,6 +178,14 @@ The installer currently offers nine skills: `add-dark-mode`, `brand-kit`,
 `make-responsive`, and `markup-from-image`. This list is not the remote ui.sh MCP
 catalog. Installing these files does not configure an MCP server.
 
+The separate `uidotsh` MCP server is configured in
+`home/.pi/agent/mcp.json`. Its Authorization command starts Fish, which loads the
+machine-local `conf.d/secrets.fish`, and prints the Bearer header privately to Pi.
+This avoids relying on the environment inherited by an already-running terminal
+or agent. After restoring `UIDOTSH_TOKEN` in that file, run `pi mcp list` to verify
+the connection, then `/reload` in existing Pi sessions. Never replace this command
+with a literal token in the tracked MCP config.
+
 Existing differing files are not overwritten silently. Back up or review local
 customizations before using `install-uidotsh --force`. If the upstream catalog adds
 new skills, move newly created global directories into `~/.skills-private/skills`,

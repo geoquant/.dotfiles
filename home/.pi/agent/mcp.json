@@ -12,7 +12,7 @@
         "-e",
         "GITHUB_PERSONAL_ACCESS_TOKEN",
         "-e",
-        "GITHUB_TOOLS=search_code",
+        "GITHUB_TOOLS=search_code,search_repositories",
         "-e",
         "GITHUB_READ_ONLY=1",
         "ghcr.io/github/github-mcp-server:v1.12.2"
@@ -27,17 +27,41 @@
     "uidotsh": {
       "url": "https://ui.sh/mcp?agent=pi",
       "headers": {
-        "Authorization": "Bearer ${UIDOTSH_TOKEN}"
+        "Authorization": "!fish -c 'test -n \"$UIDOTSH_TOKEN\"; or exit 1; printf \"Bearer %s\" \"$UIDOTSH_TOKEN\"'"
       }
     },
     "agentation": {
       "command": "npx",
-      "args": ["-y", "agentation-mcp", "server"]
+      "args": [
+        "-y",
+        "agentation-mcp",
+        "server"
+      ]
     },
     "computer": {
       "command": "open-computer-use",
-      "args": ["mcp"],
+      "args": [
+        "mcp"
+      ],
       "timeout": 60
+    },
+    "perplexity": {
+      "url": "https://api.perplexity.ai/mcp",
+      "headers": {
+        "Authorization": "!python3 -c \"from pathlib import Path; key = (Path.home() / '.pi/agent/credentials/perplexity-api-key').read_text().strip(); assert key; print('Bearer ' + key)\""
+      },
+      "exposure": "codemode",
+      "description": "Perplexity public web search, answers, reasoning, and deep research. Research requests incur API charges; never send private project or customer data without explicit approval.",
+      "timeout": 600
+    },
+    "paper": {
+      "command": "/Users/jonnie/.paper/bin/paper",
+      "args": [
+        "mcp"
+      ],
+      "description": "Paper Desktop design canvas: read and edit frames, layers, styles, tokens, and comment threads in the open Paper file",
+      "exposure": "direct",
+      "timeout": 120
     }
   }
 }

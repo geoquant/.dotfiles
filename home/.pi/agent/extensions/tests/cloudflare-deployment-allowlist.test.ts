@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -10,6 +10,26 @@ import {
 	parseCloudflareDeploymentPolicy,
 	type CloudflareDeploymentPolicy,
 } from "../cloudflare-deployment-allowlist.ts";
+
+test("treats frozen pnpm installs with scripts disabled as package provisioning", () => {
+	const cwd = mkdtempSync(join(tmpdir(), "cloudflare-install-guard-"));
+	writeFileSync(join(cwd, "package.json"), JSON.stringify({ scripts: { install: "wrangler deploy --name unapproved" } }));
+	const policy = makePolicy({});
+	for (const command of [
+		"HUSKY=0 pnpm install --frozen-lockfile --ignore-scripts",
+		"pnpm install --ignore-scripts --frozen-lockfile",
+	]) {
+		assert.equal(decide(command, cwd, policy)._tag, "unrelated", command);
+	}
+	for (const command of [
+		"pnpm install --frozen-lockfile",
+		"pnpm run install --frozen-lockfile --ignore-scripts",
+		"pnpm install --frozen-lockfile --ignore-scripts --ignore-scripts=false",
+		"pnpm install --frozen-lockfile --ignore-scripts && wrangler deploy --name unapproved",
+	]) {
+		assert.equal(decide(command, cwd, policy)._tag, "block", command);
+	}
+});
 
 function makePolicy(
 	workers: Readonly<Record<string, readonly string[]>>,
@@ -148,6 +168,69 @@ function makeJsonWorkerProject(): string {
 	);
 	return cwd;
 }
+
+function makeFocusedTestWorkspace(): { readonly root: string; readonly dash: string } {
+	const root = mkdtempSync(join(tmpdir(), "cloudflare-focused-test-guard-"));
+	const dash = join(root, "apps", "dash");
+	mkdirSync(dash, { recursive: true });
+	writeFileSync(join(root, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n");
+	writeFileSync(join(root, "package.json"), JSON.stringify({ name: "focused-tests" }));
+	writeFileSync(join(dash, "package.json"), JSON.stringify({
+		name: "@cloudflare/app-dash",
+		scripts: {
+			"test:vitest": "vitest run --config vitest.config.ts",
+			"ship-worker": "wrangler deploy --env staging",
+			"test:chain": "pnpm test:vitest",
+			"test:with-deploy": "vitest run --config vitest.config.ts && wrangler deploy",
+			"test:node": "node scripts/check.ts",
+		},
+	}));
+	return { root, dash };
+}
+
+test("permits only understood focused Vitest arguments after resolving the static script", () => {
+	const { root, dash } = makeFocusedTestWorkspace();
+	const policy = makePolicy({});
+	const file = "react/pages/workers/DeploymentsCard.characterization.test.tsx";
+	for (const command of [
+		`pnpm --filter @cloudflare/app-dash test:vitest ${file} --maxWorkers=2`,
+		`pnpm --filter @cloudflare/app-dash test:vitest -- ${file} --maxWorkers 2`,
+		`npm run test:vitest -- ${file}`,
+		`pnpm test:vitest ${file} another.spec.ts`,
+	]) {
+		const cwd = command.includes("--filter") ? root : dash;
+		assert.equal(decide(command, cwd, policy)._tag, "unrelated", command);
+	}
+});
+
+test("focused Vitest arguments cannot override configuration or execute arbitrary programs", () => {
+	const { dash } = makeFocusedTestWorkspace();
+	const policy = makePolicy({});
+	for (const args of [
+		"--config external.ts", "--environment custom", "--import injected.ts",
+		"--maxWorkers=0", "--maxWorkers -1", "--maxWorkers $(echo 2)",
+		"../outside.test.ts", "/tmp/outside.test.ts", "run", "--",
+		"'$(touch /tmp/unwanted).test.ts'", "'foo;wrangler deploy.test.ts'",
+		"wrangler deploy", "--env production", "--maxWorkers=2 --config=evil.ts",
+	]) {
+		assert.equal(decide(`pnpm test:vitest -- ${args}`, dash, policy)._tag, "block", args);
+	}
+});
+
+test("forwarding does not exempt aliases, deployments, missing scripts or compound scripts", () => {
+	const { dash } = makeFocusedTestWorkspace();
+	const policy = makePolicy({});
+	for (const command of [
+		"pnpm ship-worker --env production",
+		"pnpm test:chain react/view.test.ts",
+		"pnpm test:with-deploy react/view.test.ts",
+		"pnpm test:node react/view.test.ts",
+		"pnpm missing react/view.test.ts",
+		"pnpm --filter @missing/workspace test:vitest react/view.test.ts",
+		"pnpm test:vitest react/view.test.ts && wrangler deploy --name unapproved",
+		"pnpm test:vitest react/view.test.ts; alchemy destroy",
+	]) assert.equal(decide(command, dash, policy)._tag, "block", command);
+});
 
 function decide(
 	command: string,
@@ -791,7 +874,7 @@ test("rejects malformed policy shapes with actionable errors", () => {
 
 test("treats Herdr agent prompt text as data, not a policy file operand", () => {
 	const cwd = process.cwd();
-	const policyPath = join(cwd, "agent/cloudflare-deployment-allowlist.json");
+	const policyPath = resolve(import.meta.dirname, "../../cloudflare-deployment-allowlist.json");
 	for (const message of [
 		`Do not alter ${policyPath}; implement browser restore only.`,
 		`Review cloudflare-deployment-allowlist.json without editing it.`,
@@ -824,7 +907,7 @@ test("treats Herdr agent prompt text as data, not a policy file operand", () => 
 
 test("detects high-confidence bash mutations of the global policy", () => {
 	const cwd = process.cwd();
-	const policyPath = join(cwd, "agent/cloudflare-deployment-allowlist.json");
+	const policyPath = resolve(import.meta.dirname, "../../cloudflare-deployment-allowlist.json");
 	for (const command of [
 		`printf '{}' > ${policyPath}`,
 		`rm -f ${policyPath}`,

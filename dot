@@ -1143,7 +1143,7 @@ cmd_update() {
     # never has to download one the first time a project resolves to it.
     if __command_exists vp; then
         __print_info "Installing latest Node.js LTS and current releases..."
-        if vp env install lts && vp env install latest && vp env default lts >/dev/null; then
+        if vp env install lts && vp env install latest; then
             __print_success "Node.js runtimes up to date"
         else
             __print_warning "Failed to update Node.js runtimes"

@@ -10,6 +10,7 @@ It supports:
 - importing existing OpenCode auth from `~/.local/share/opencode/auth.json`
 - routed Anthropic / OpenAI / Google / xAI / Workers AI access through `https://opencode.cloudflare.dev`
 - both the legacy `workers-ai` and current `cloudflare-workers-ai` gateway catalog identifiers
+- Grok 4.6 and 4.7 selection with text/image input and the published 500,000-token context/output limits
 
 ## Usage
 
@@ -85,5 +86,7 @@ pi -e ./home/.pi/agent/extensions/opencode-cloudflare -p --provider opencode.clo
 ## Notes
 
 - The extension uses a single custom Pi API (`opencode-cloudflare`) and dispatches each request to the appropriate built-in Pi streamer.
+- The xAI catalog includes explicit fallbacks for recent Grok releases when Pi's bundled catalog lags OpenCode. Grok 4.6/4.7 metadata was checked against OpenCode 1.18.35's refreshed catalog. Their fallback costs use its base rates (USD per million tokens); the higher rates above 200,000 input tokens are not represented by this extension's flat cost fields. Catalog visibility does not prove gateway inference access. No `fast` service tier is enabled by adding a model.
+- Catalog changes apply on a new Pi process or `/reload`. Leave an active goal alone until its owner has checkpointed it.
 - If you refresh your OpenCode token outside of Pi while Pi is already running, use `/reload` so Pi refreshes its cached fallback token command.
 - The gateway auth flow is allowlisted to `https://opencode.cloudflare.dev` only.

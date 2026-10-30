@@ -18,7 +18,7 @@ export interface CatalogData {
 	counts: Record<Backend, number>;
 }
 
-const CURRENT_XAI_MODELS: Record<string, GatewayModelConfig> = {
+const CURRENT_XAI_MODELS: Record<string, GatewayModelConfig & { cost?: Model<Api>["cost"] }> = {
 	"grok-4.20-0309-non-reasoning": {
 		name: "Grok 4.20 (Non-Reasoning)",
 		attachment: true,
@@ -46,6 +46,22 @@ const CURRENT_XAI_MODELS: Record<string, GatewayModelConfig> = {
 		reasoning: true,
 		tool_call: true,
 		limit: { context: 500000, output: 500000 },
+	},
+	"grok-4.6": {
+		name: "Grok 4.6",
+		attachment: true,
+		reasoning: true,
+		tool_call: true,
+		limit: { context: 500000, output: 500000 },
+		cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+	},
+	"grok-4.7": {
+		name: "Grok 4.7",
+		attachment: true,
+		reasoning: true,
+		tool_call: true,
+		limit: { context: 500000, output: 500000 },
+		cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
 	},
 	"grok-build-0.1": {
 		name: "Grok Build 0.1",
@@ -159,6 +175,7 @@ function buildBuiltInModels(backend: Exclude<Backend, "workers-ai">, gatewayMode
 					maxTokens: config.limit?.output || 16384,
 				}),
 				api: "openai-completions",
+				cost: config.cost || existing?.cost || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				name: config.name || existing?.name || id,
 				contextWindow: config.limit?.context || existing?.contextWindow || 128000,
 				maxTokens: config.limit?.output || existing?.maxTokens || 16384,

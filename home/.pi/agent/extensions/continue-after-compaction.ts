@@ -41,6 +41,18 @@ export default function continueAfterCompaction(pi: ExtensionAPI): void {
 
 		const timer = setTimeout(() => {
 			pendingTimers.delete(timer);
+			// Recheck at dispatch: compaction must not reanimate paused goals.
+			// Budget-stopped tasks are rejected by goal-safety's input handler.
+			let status: unknown;
+			for (const entry of ctx.sessionManager.getBranch()) {
+				if (entry.type !== "custom") continue;
+				if (entry.customType !== "pi-codex-goal" || !entry.data || typeof entry.data !== "object") continue;
+				const data = entry.data as Record<string, unknown>;
+				if (data.kind === "clear") status = undefined;
+				if (data.kind === "set" && data.goal && typeof data.goal === "object") status = (data.goal as Record<string, unknown>).status;
+				if (data.kind === "usage") status = data.status;
+			}
+			if (status !== undefined && status !== "active") return;
 			pi.sendUserMessage(prompt, { deliverAs: "steer" });
 		}, 0);
 

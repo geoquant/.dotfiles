@@ -16,7 +16,8 @@ import {
 
 const extensionPath = join(dirname(fileURLToPath(import.meta.url)), "..", "continue-after-compaction.ts");
 
-test("automatic compaction steers the continuation into the retried agent turn", async () => {
+for (const goalStatus of [undefined, "paused", "blocked", "budgetLimited", "complete"] as const) {
+test(`compaction continuation respects goal status ${goalStatus ?? "no goal"}`, async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "pi-continue-after-compaction-"));
 
 	try {
@@ -39,11 +40,13 @@ test("automatic compaction steers the continuation into the retried agent turn",
 			sentMessages.push({ content, deliverAs: options?.deliverAs });
 		};
 
+		const session = SessionManager.create(cwd);
+		if (goalStatus !== undefined) session.appendCustomEntry("pi-codex-goal", { kind: "set", goal: { goalId: "synthetic-goal", status: goalStatus } });
 		const runner = new ExtensionRunner(
 			loaded.extensions,
 			loaded.runtime,
 			cwd,
-			SessionManager.create(cwd),
+			session,
 			new ModelRegistry(modelRuntime),
 		);
 		runner.bindCore(loaded.runtime, {
@@ -77,10 +80,13 @@ test("automatic compaction steers the continuation into the retried agent turn",
 		});
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-		assert.equal(sentMessages.length, 1);
-		assert.equal(sentMessages[0]?.deliverAs, "steer");
-		assert.match(sentMessages[0]?.content ?? "", /Resume the existing task/);
+		assert.equal(sentMessages.length, goalStatus === undefined ? 1 : 0);
+		if (goalStatus === undefined) {
+			assert.equal(sentMessages[0]?.deliverAs, "steer");
+			assert.match(sentMessages[0]?.content ?? "", /Resume the existing task/);
+		}
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
 });
+}

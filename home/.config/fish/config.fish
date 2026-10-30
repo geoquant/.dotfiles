@@ -10,6 +10,10 @@ set -gx MANPAGER 'nvim +Man!'
 # Add dotfiles directory to PATH for 'dot' command
 fish_add_path ~/.dotfiles
 
+# Added by OrbStack: command-line tools and integration
+# This won't be added again if you remove it.
+source ~/.orbstack/shell/init2.fish 2>/dev/null || :
+
 # Rex puts its server's rex CLI first on PATH, but startup files reorder PATH.
 # Keep it first so rex matches the running server (must stay last).
 if set -q REX_BIN_DIR
