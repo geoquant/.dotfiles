@@ -5,6 +5,29 @@
 
 macOS dev env via GNU Stow. Fish + Neovim + Herdr + Git + pi.
 
+## PRIORITY CHECK — REX CONFIG API AUDIT (WEEKLY)
+
+**Last audit: 2026-10-28**
+
+At the start of every session, compare this date with today. If it is **7 or
+more days old**, do this audit **before** the user's task (tell the user you
+are doing it, keep it short):
+
+1. Check whether Rex now offers settings in a file or Lua API instead of
+   macOS defaults: read https://www.superlogical.com/rex/docs/llms.txt (new
+   pages under Customize/References), `customize/config.md`,
+   `reference/lua.md`, and search
+   `https://www.superlogical.com/rex/docs/search.json?q=settings` (also
+   `theme`, `font`).
+2. Diff the app's settings keys against `home/.config/rex/macos-defaults.conf`:
+   `strings "/Applications/Rex Beta.app/Contents/MacOS/Rex" | grep '^Workspace\.' | sort -u`
+   Flag renamed/removed keys we write, and new keys that map to Ghostty options.
+3. If a file/Lua API now exists: migrate `macos-defaults.conf` and the theme
+   import into it, and remove `__apply_rex_app_settings`/`__import_rex_theme`
+   from `dot`. If only keys changed: update `macos-defaults.conf`.
+4. Update **Last audit** above to today's date (even if nothing changed) and
+   mention the result to the user.
+
 ## STRUCTURE
 
 ```
@@ -14,6 +37,7 @@ macOS dev env via GNU Stow. Fish + Neovim + Herdr + Git + pi.
 │   ├── fish/           # Shell (AGENTS.md)
 │   ├── nvim/           # Editor (AGENTS.md)
 │   ├── herdr/          # Terminal-native workspace/tab/pane manager
+│   ├── rex/            # Rex multiplexer (init.lua, ported from herdr)
 │   ├── git/            # Conditional work config
 │   ├── ghostty/        # Terminal
 │   ├── starship.toml   # Prompt (custom.scm, 2s timeout for Vite+)
@@ -39,6 +63,9 @@ macOS dev env via GNU Stow. Fish + Neovim + Herdr + Git + pi.
 | Neovim plugin | `home/.config/nvim/lua/plugins/<name>.lua` |
 | Neovim keymap | `home/.config/nvim/lua/dmmulroy/keymaps.lua` |
 | Herdr config | `home/.config/herdr/config.toml` |
+| Rex config | `home/.config/rex/init.lua` (then `rex config check && rex config reload`) |
+| Rex app settings (font, Option key, tabs) | `home/.config/rex/macos-defaults.conf` (`dot update` writes defaults; relaunch Rex) |
+| Vim/mux pane navigation | `home/.config/nvim/lua/plugins/smart-splits.lua` (Herdr + Rex backends) |
 | Starship prompt | `home/.config/starship.toml` |
 | Agent skill | `home/.agents/skills/<name>/SKILL.md` |
 | Pi extension | `home/.pi/agent/extensions/<name>/` |
@@ -93,6 +120,7 @@ dot gen-ssh-key       # Generate ed25519 key by email domain
 | Fish | `config.fish` | Sources `conf.d/`, sets EDITOR/MANPAGER |
 | Neovim | `init.lua` | 1 line: `require("dmmulroy")` |
 | Herdr | `config.toml` | Prefix `C-;`, workspaces/tabs/panes |
+| Rex | `init.lua` | Same `C-;` prefix as `ctrl+;>` sequences; app updated by `dot` from Sparkle appcast (not Homebrew) |
 | Git | `config` | SSH signing, `pull.rebase`, conditional include |
 | Starship | `starship.toml` | 2s timeout (Vite+ shims), custom.scm after dir |
 | Pi | `settings.json` | Private gateway provider, Catppuccin theme |
