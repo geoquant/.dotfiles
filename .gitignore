@@ -113,3 +113,6 @@ home/.agents/skills/ui-prototype
 # Personal skill stored in skills-private; restore its local link on bootstrap.
 home/.agents/skills/product-description
 home/.agents/skills/tldraw-offline
+
+# agent-tooling sync clones upstream sources here (folded stow dir)
+home/.local/share/agent-tooling/sources/
