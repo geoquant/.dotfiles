@@ -13,6 +13,7 @@ class PiPortabilityTests(unittest.TestCase):
         manifest = (ROOT/'home/.config/agent-tooling/pi-packages.txt').read_text()
         self.assertIn('git:github.com/t3dotgg/tstack@1085050f', manifest)
         self.assertIn('../../.local/share/pstack-pi', manifest)
+        self.assertIn('git:github.com/earendil-works/pi-claude-code', manifest)
         package = ROOT/'home/.local/share/pstack-pi'
         self.assertEqual(len(list((package/'skills').glob('*/SKILL.md'))), 52)
         self.assertTrue((package/'LICENSE').is_file())

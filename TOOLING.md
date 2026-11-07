@@ -36,6 +36,30 @@ settings, models, credentials, memory and Muster state remain machine-local.
 | Matt Pocock | Engineering + productivity skills; current source revision and fork mode in `skill-sources.json` |
 | Lauren Tan | Brainmaxxing memory loop, Noodle CLI skill, How, behavior-verification fork |
 
+## Claude subscription in Pi and OpenCode (2026-11-07)
+
+Both harnesses reach Claude Pro/Max through the official Claude Code CLI
+running locally, so neither stores Claude credentials and usage counts against
+the normal subscription quota. Claude Code is the `claude-code` cask in
+`packages/bundle`; sign in once with `claude auth login`.
+
+- **Pi:** `git:github.com/earendil-works/pi-claude-code` (in `pi-packages.txt`)
+  adds the "Claude Code Subscription (Experimental)" provider. Pick it in
+  `/model`; `/claude-code-status` checks install and login. It refuses to run
+  when an Anthropic API key, proxy, or Bedrock/Vertex/Foundry override is in
+  the environment. Pi's own `anthropic` provider and `/login` are separate and
+  do not use the subscription. The OpenCode provider and default model are
+  unchanged.
+- **OpenCode:** 2.2.3+ ships a built-in Claude Agent provider. Run
+  `opencode upgrade`, then `/connect` → Claude Agent (or
+  `opencode auth login claude-agent`), then `/models`. Effort variants look
+  like `claude-agent/opus#high`. Claude Code needs 2.1.248+ (`claude update`).
+  No `opencode.jsonc` change is required.
+
+`agent-tooling doctor` reports Claude Code's version and warns if it is not
+logged in. Anthropic has not published a separate policy statement on these
+integrations; billing for `claude -p`/Agent SDK use may change.
+
 ## Local Jira tool
 
 The global `jira` Pi tool wraps the installed authenticated CLI at

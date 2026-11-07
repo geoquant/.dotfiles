@@ -43,6 +43,7 @@ brew "wget"
 brew "zoxide"
 
 cask "1password"
+cask "claude-code"
 cask "cleanshot"
 cask "discord"
 cask "elgato-camera-hub"

@@ -13,3 +13,5 @@ git:github.com/joelhooks/pi-muster
 # Vendored Pi adaptation, stowed before sync. Relative to ~/.pi/agent/settings.json.
 ../../.local/share/pstack-pi
 git:github.com/t3dotgg/tstack@1085050f3baed1ac724caa4a8166145fb2ac88af
+# Claude Pro/Max in Pi via the local Claude Code CLI (`claude auth login`; no API key).
+git:github.com/earendil-works/pi-claude-code

@@ -102,6 +102,12 @@ case "${1:-help}" in
         [[ $# == 1 ]] || { echo 'Usage: agent-tooling doctor' >&2; exit 2; }
         pi --version
         herdr status
+        if command -v claude >/dev/null; then
+            claude --version
+            claude auth status >/dev/null 2>&1 || echo 'Claude Code is not logged in: run claude auth login (Pi claude-code provider, OpenCode Claude Agent).' >&2
+        else
+            echo 'Claude Code missing: brew install --cask claude-code' >&2
+        fi
         noodle --version
         pi list
         while IFS= read -r source; do
