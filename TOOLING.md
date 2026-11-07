@@ -1,5 +1,26 @@
 # Personal agent stack
 
+## Personal-machine parity (2026-11-07)
+
+Rex configuration, theme, installer/update path, and skill are already tracked. Current Rex config/Lua/Mac settings docs and installed Workspace keys were audited; `rex config check` passed (65 bindings). No documented replacement for the Mac preferences importer was found.
+
+Now included: pinned t3dotgg/tstack (including council), the existing Pi-adapted pstack package with all 52 skills, and portable UI defaults. Bootstrap merges missing defaults without overwriting provider/model choices or existing settings. No private work model roster is published.
+
+On the personal Mac:
+
+```sh
+cd ~/.dotfiles
+git pull --ff-only
+./dot stow
+agent-tooling sync
+cd ~/.pi && npm ci
+agent-tooling doctor
+```
+
+On a fresh Mac use `./dot init` first. Preserve and compare any existing pstack directory if stow reports conflicts; do not force adoption. Start a fresh Pi session afterward. Use Pi `/login` and `/model` to select an accessible provider, then `/skill:setup-pstack` to configure role models. Work gateway access is not guaranteed on a personal machine.
+
+Credentials, `auth.json`, live settings, MCP authentication, sessions, private model overlays, paid/private skills, and service state are deliberately excluded. Sign into services separately. MCP servers still require their executables and authentication (for example OrbStack for GitHub search); Computer tools need macOS permissions. Work-only Jira is not portable without its separate setup. No new agents, watches, or loops start during bootstrap.
+
 The stack is installed locally and reproduced from this repository. Live Pi
 settings, models, credentials, memory and Muster state remain machine-local.
 

@@ -10,3 +10,6 @@ git:github.com/nicobailon/pi-intercom
 git:github.com/joelhooks/pi-until
 git:github.com/joelhooks/pi-bellwether
 git:github.com/joelhooks/pi-muster
+# Vendored Pi adaptation, stowed before sync. Relative to ~/.pi/agent/settings.json.
+../../.local/share/pstack-pi
+git:github.com/t3dotgg/tstack@1085050f3baed1ac724caa4a8166145fb2ac88af

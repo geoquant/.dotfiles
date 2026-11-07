@@ -57,6 +57,7 @@ case "${1:-help}" in
             exec fnm exec --using 24.18.0 "$0" "$@"
         fi
         command -v pi >/dev/null || npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+        "$HOME/.local/bin/pi-settings-bootstrap"
         # Remove only the old upstream Herdr adapter; Bellwether owns this surface.
         if pi list | grep -q '^  git:github.com/dmmulroy/pi-herdr$'; then
             pi remove git:github.com/dmmulroy/pi-herdr
@@ -64,6 +65,11 @@ case "${1:-help}" in
         installed=$(pi list)
         while IFS= read -r source; do
             [[ -z "$source" || "$source" == \#* ]] && continue
+            # CLI-relative paths resolve from cwd, not the settings directory.
+            if [[ "$source" == '../../.local/share/pstack-pi' ]]; then
+                grep -Fqx "  $source" <<< "$installed" && continue
+                source="$HOME/.local/share/pstack-pi"
+            fi
             if ! grep -Fqx "  $source" <<< "$installed"; then pi install "$source"; fi
         done < "$config/pi-packages.txt"
         mkdir -p "$sources"
@@ -100,6 +106,10 @@ case "${1:-help}" in
         pi list
         while IFS= read -r source; do
             [[ -z "$source" || "$source" == \#* ]] && continue
+            if [[ "$source" == '../../.local/share/pstack-pi' ]]; then
+                pi list | grep -Fqx "  $source" && continue
+                source="$HOME/.local/share/pstack-pi"
+            fi
             pi list | grep -Fqx "  $source" || { echo "Missing Pi package: $source" >&2; exit 1; }
         done < "$config/pi-packages.txt"
         for repo in joelhooks/rat-stack mattpocock/skills poteto/brainmaxxing poteto/noodle poteto/how poteto/verification-skill-example; do

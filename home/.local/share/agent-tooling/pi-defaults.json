@@ -1,0 +1,7 @@
+{
+  "theme": "catppuccin-macchiato",
+  "defaultThinkingLevel": "medium",
+  "hideThinkingBlock": false,
+  "enableSkillCommands": true,
+  "markdown": { "mermaid": "streaming" }
+}
