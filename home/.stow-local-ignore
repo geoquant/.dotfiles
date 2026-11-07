@@ -3,3 +3,4 @@ kubectl\.fish
 orbctl\.fish
 herdr\.sock(\..*)?
 session-snapshots
+node_modules

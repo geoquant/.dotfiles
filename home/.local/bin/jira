@@ -1,1 +1,5 @@
-/Users/jonnie/dev/me/jira/jira
+#!/usr/bin/env bash
+# Stow rejects absolute symlinks; forward to the local jira CLI checkout instead.
+target="${JIRA_CLI:-$HOME/dev/me/jira/jira}"
+[[ -x "$target" ]] || { echo "jira CLI not found at $target (set JIRA_CLI)" >&2; exit 127; }
+exec "$target" "$@"
